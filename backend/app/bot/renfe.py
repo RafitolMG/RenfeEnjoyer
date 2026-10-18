@@ -38,6 +38,10 @@ PASSES_URL = "https://venta.renfe.com/vol/myPassesCard.do"
 # login form, so staying on the path is what tells us the session is still good.
 PASSES_PATH = "myPassesCard.do"
 HOME_URL_FRAGMENT = "venta.renfe.com/vol/home.do"
+# The trains listing. Renfe's session lasts 30 minutes from the login however often the
+# page is reloaded (its SSOInfo cookie is never renewed); the next reload then bounces
+# to the public homepage, which offers no reserve button and so would read as "no seats".
+RESULTS_PATH = "trainFormalization.do"
 
 JOURNEY_RADIO_IDS = {"ida": "journeyStationOrigin", "vuelta": "journeyStationDestin"}
 
@@ -104,6 +108,10 @@ class LoginFailed(BotError):
 
 class NoTrainsListed(BotError):
     """Raised when the results page offers nothing to choose from."""
+
+
+class ResultsLost(BotError):
+    """Raised when the trains listing cannot be reopened after Renfe left it."""
 
 
 class PromptNotOpen(Exception):
@@ -207,7 +215,7 @@ def run_search(
         departure = request.departure_time or _choose_train(
             driver, wait, reporter, interaction
         )
-        _poll_for_seat(driver, wait, departure, reporter, interaction.cancel)
+        _poll_for_seat(driver, wait, request, departure, reporter, interaction)
 
         reporter.state(
             JobState.RESERVED,
@@ -629,11 +637,20 @@ def _describe_rows(rows: list[WebElement]) -> str:
 def _poll_for_seat(
     driver: WebDriver,
     wait: WebDriverWait,
+    request: SearchRequest,
     departure_time: str,
     reporter: Reporter,
-    cancel: threading.Event,
+    interaction: Interaction,
 ) -> None:
-    reporter.state(JobState.POLLING, f"Buscando plazas para las {departure_time}")
+    cancel = interaction.cancel
+    polling = f"Buscando plazas para las {departure_time}"
+    reporter.state(JobState.POLLING, polling)
+
+    def reload() -> None:
+        driver.refresh()
+        if not _on_results_page(driver):
+            _reopen_results(driver, wait, request, reporter, interaction)
+            reporter.state(JobState.POLLING, polling)
 
     attempt = 0
     while True:
@@ -644,7 +661,7 @@ def _poll_for_seat(
         button = _find_reserve_button(driver, departure_time)
         if button is None:
             reporter.log(f"Intento {attempt}: el tren sigue sin plazas, recargando")
-            driver.refresh()
+            reload()
             continue
 
         try:
@@ -654,7 +671,7 @@ def _poll_for_seat(
 
             if _is_sold_out(driver, cancel):
                 reporter.log(f"Intento {attempt}: sin asientos libres, recargando")
-                driver.refresh()
+                reload()
                 continue
 
             wait.until(EC.visibility_of_element_located(CONFIRMATION_LOCATOR))
@@ -662,7 +679,48 @@ def _poll_for_seat(
             return
         except (NoSuchElementException, TimeoutException):
             reporter.log(f"Intento {attempt}: tren no disponible, recargando")
-            driver.refresh()
+            reload()
+
+
+def _on_results_page(driver: WebDriver) -> bool:
+    return RESULTS_PATH in driver.current_url
+
+
+def _reopen_results(
+    driver: WebDriver,
+    wait: WebDriverWait,
+    request: SearchRequest,
+    reporter: Reporter,
+    interaction: Interaction,
+) -> None:
+    """Get back to the trains listing after Renfe has navigated away from it.
+
+    Usually the 30-minute session has run out, so this may log in again, captcha and
+    verification code included.
+    """
+    reporter.log(
+        f"Renfe ha sacado el navegador de la lista de trenes (ahora en "
+        f"{_describe_location(driver)}); probablemente ha caducado la sesión, que "
+        "dura 30 minutos. Se vuelve a abrir la búsqueda."
+    )
+    _ensure_session(driver, wait, request, reporter, interaction)
+    _guard(interaction.cancel)
+    _open_pass(driver, wait, request, reporter)
+    _guard(interaction.cancel)
+    _submit_search(driver, wait, request, reporter)
+    try:
+        wait.until(EC.url_contains(RESULTS_PATH))
+    except TimeoutException:
+        raise ResultsLost(
+            "Renfe ha sacado el navegador de la lista de trenes y no se ha podido "
+            f"volver a ella (se quedó en {_describe_location(driver)})."
+        ) from None
+    reporter.log("De vuelta en la lista de trenes")
+
+
+def _describe_location(driver: WebDriver) -> str:
+    """Host and path only: the query string carries Renfe's conversation id."""
+    return driver.current_url.split("?", 1)[0].removeprefix("https://") or "-"
 
 
 def _find_reserve_button(driver: WebDriver, departure: str) -> WebElement | None:

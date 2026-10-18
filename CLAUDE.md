@@ -76,6 +76,14 @@ Key invariants:
   bounces to its public homepage rather than to the login form, so looking for a login field there
   would never match. Whether Renfe's auth cookie survives a browser restart is unverified — a
   session cookie would not, no matter the profile.
+- **Renfe's session lasts 30 minutes from the login, however busy it is.** Measured on two runs:
+  the `SSOInfo` cookie expires 30 minutes after the login and is never renewed, not even by
+  hundreds of reloads; the first reload after that bounces through `home.do` to
+  `www.renfe.com/es/es`. That page has no reserve button, so the bot used to read it as "no
+  seats" and reload it forever — the blank window reported as "it goes white after a while".
+  `_poll_for_seat` now checks after every reload that the URL still holds `trainFormalization.do`
+  and otherwise reopens the search (`_reopen_results`), which may mean a fresh login with its
+  captcha and code. A long polling session therefore needs the user every 30 minutes.
 - **Whether a profile is logged in is recorded, never inferred.** The bot writes `SESSION_MARKER` into the
   profile when it sees the session work and removes it before logging in again; the SPA's indicator reads
   only that. The profile's contents prove nothing: Chrome fills the directory the moment it opens, and a
