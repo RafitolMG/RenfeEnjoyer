@@ -6,6 +6,7 @@ An approved computer gets a license signed with this server's private key that l
 while a revocation still takes effect within that window.
 """
 
+import mimetypes
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -48,6 +49,9 @@ app.include_router(auth.router)
 
 PAGES = Path(__file__).parent
 HOME_PAGE = (PAGES / "index.html").read_text(encoding="utf-8")
+# python:3.12-slim has no /etc/mime.types and Python 3.12 does not know .webp on its own,
+# so the logo went out as application/octet-stream.
+mimetypes.add_type("image/webp", ".webp")
 app.mount("/static", StaticFiles(directory=PAGES / "static"), name="static")
 
 
