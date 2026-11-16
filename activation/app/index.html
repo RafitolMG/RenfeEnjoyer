@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Renfe Enjoyer</title>
+<meta name="description" content="Vigila el tren de tu abono de Renfe y reserva en cuanto se libera una plaza. Para Windows.">
+<meta property="og:title" content="Renfe Enjoyer">
+<meta property="og:description" content="Vigila el tren de tu abono de Renfe y reserva en cuanto se libera una plaza.">
+<meta property="og:image" content="/static/logo.webp">
+<link rel="icon" type="image/webp" href="/static/logo.webp">
+<style>
+  /* Same palette as the app: dark by default, light when the system asks for it. */
+  :root {
+    --bg: #0b0c11; --surface: #14161f; --surface-raised: #1b1e2a; --border: #262a38;
+    --border-strong: #343949; --text: #e9eaf0; --muted: #9297ab;
+    --accent: #8b5cf6; --accent-strong: #a78bfa; --ok: #34d399; --warn: #fbbf24;
+    --glow: rgb(139 92 246 / 18%);
+    --mono: ui-monospace, "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f5f6fa; --surface: #ffffff; --surface-raised: #fbfbfe; --border: #e3e5ee;
+      --border-strong: #cfd3e1; --text: #1a1c25; --muted: #61667a;
+      --accent: #7c3aed; --accent-strong: #6d28d9; --ok: #059669; --warn: #b45309;
+      --glow: rgb(124 58 237 / 10%);
+      color-scheme: light;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Inter, sans-serif; }
+  a { color: inherit; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 20px; }
+
+  /* --- nav --- */
+  nav { display: flex; align-items: center; justify-content: space-between; padding: 22px 0; }
+  .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; font-weight: 650; font-size: 18px; }
+  .brand img { width: 36px; height: 36px; border-radius: 10px; box-shadow: 0 0 0 1px var(--border-strong); }
+  .nav-link { color: var(--muted); text-decoration: none; font-size: 15px; }
+  .nav-link:hover { color: var(--text); }
+
+  /* --- hero --- */
+  .hero { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 48px;
+          align-items: center; padding-top: 56px; padding-bottom: 72px; }
+  .hero h1 { font-size: clamp(32px, 5vw, 48px); line-height: 1.1; letter-spacing: -0.02em; margin: 0 0 18px; }
+  .hero h1 em { font-style: normal; color: var(--accent-strong); }
+  .hero p.lead { font-size: 18px; color: var(--muted); margin: 0 0 30px; max-width: 34em; }
+  .cta { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .btn { display: inline-flex; align-items: center; gap: 10px; padding: 13px 22px; border-radius: 10px;
+         font-weight: 600; text-decoration: none; border: 1px solid transparent; }
+  .btn-primary { background: var(--accent); color: #fff; box-shadow: 0 8px 28px var(--glow); }
+  .btn-primary:hover { background: var(--accent-strong); }
+  .btn-ghost { border-color: var(--border-strong); }
+  .btn-ghost:hover { border-color: var(--accent); }
+  .btn svg { width: 18px; height: 18px; flex: none; }
+  .meta { margin-top: 16px; font-size: 14px; color: var(--muted); }
+
+  /* --- the polling board: what the app shows while it waits --- */
+  .board { background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+           box-shadow: 0 24px 60px rgb(0 0 0 / 25%), 0 0 0 6px var(--glow); overflow: hidden; }
+  .board-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+                padding: 16px 18px; border-bottom: 1px solid var(--border); background: var(--surface-raised); }
+  .board-head strong { font-size: 15px; }
+  .board-head span { font-size: 13px; color: var(--muted); font-family: var(--mono); }
+  .train { display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: center;
+           padding: 16px 18px; border-bottom: 1px solid var(--border); }
+  .train .time { font-family: var(--mono); font-size: 26px; font-weight: 600; letter-spacing: 0.02em; }
+  .train .route { font-size: 14px; color: var(--muted); }
+  .seat { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; border: 1px solid currentColor;
+          white-space: nowrap; }
+  .seat.none { color: var(--warn); }
+  .seat.free { color: var(--ok); display: none; }
+  .log { margin: 0; padding: 14px 18px 18px; list-style: none; font-family: var(--mono); font-size: 13px;
+         color: var(--muted); display: grid; gap: 6px; min-height: 148px; }
+  .log li { opacity: 0; transform: translateY(4px); animation: line 0.4s ease forwards; }
+  .log li.found { color: var(--ok); font-weight: 600; }
+  .log li:nth-child(1) { animation-delay: 0.3s; }
+  .log li:nth-child(2) { animation-delay: 1.3s; }
+  .log li:nth-child(3) { animation-delay: 2.3s; }
+  .log li:nth-child(4) { animation-delay: 3.3s; }
+  .log li:nth-child(5) { animation-delay: 4.3s; }
+  .board.done .seat.none { display: none; }
+  .board.done .seat.free { display: inline-block; }
+  @keyframes line { to { opacity: 1; transform: none; } }
+
+  /* --- sections --- */
+  section { padding: 56px 0; border-top: 1px solid var(--border); }
+  section h2 { font-size: 26px; letter-spacing: -0.01em; margin: 0 0 8px; }
+  section > .wrap > p.sub { color: var(--muted); margin: 0 0 32px; max-width: 42em; }
+  .steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px;
+           grid-template-columns: repeat(4, minmax(0, 1fr)); counter-reset: step; }
+  .steps li { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .steps li::before { counter-increment: step; content: counter(step); display: grid; place-items: center;
+                      width: 30px; height: 30px; border-radius: 50%; margin-bottom: 14px; font-weight: 700;
+                      font-size: 14px; color: var(--accent-strong); border: 1px solid var(--accent); }
+  .steps h3, .cols h3 { font-size: 16px; margin: 0 0 6px; }
+  .steps p, .cols p, .cols li { color: var(--muted); font-size: 15px; margin: 0; }
+  .cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; }
+  .cols ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+  code { font-family: var(--mono); font-size: 0.92em; padding: 1px 6px; border-radius: 6px;
+         background: var(--surface-raised); border: 1px solid var(--border); }
+
+  footer { border-top: 1px solid var(--border); padding: 28px 0 40px; font-size: 14px; color: var(--muted); }
+  footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  footer nav { padding: 0; gap: 18px; justify-content: flex-start; }
+  footer a { color: var(--muted); }
+  footer a:hover { color: var(--text); }
+
+  @media (max-width: 880px) {
+    .hero { grid-template-columns: minmax(0, 1fr); gap: 36px; padding-top: 28px; padding-bottom: 56px; }
+    .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .cols { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  }
+  @media (max-width: 520px) {
+    .steps { grid-template-columns: minmax(0, 1fr); }
+    .btn { width: 100%; justify-content: center; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .log li { animation: none; opacity: 1; transform: none; }
+  }
+</style>
+</head>
+<body>
+<header class="wrap">
+  <nav aria-label="Principal">
+    <a class="brand" href="/"><img src="/static/logo.webp" alt="" width="36" height="36">Renfe Enjoyer</a>
+    <a class="nav-link" href="https://github.com/RafitolMG/RenfeEnjoyer-Backend/tree/ubuntu-dev">Código en GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <div class="wrap hero">
+    <div>
+      <h1>Tu plaza del abono, <em>sin pasarte la mañana recargando.</em></h1>
+      <p class="lead">
+        Renfe Enjoyer vigila el tren que eliges y lo reserva en cuanto se libera una plaza.
+        Después te deja el navegador abierto para que termines la compra.
+      </p>
+      <div class="cta">
+        <a class="btn btn-primary" id="download"
+           href="https://github.com/RafitolMG/RenfeEnjoyer-Backend/releases/latest/download/RenfeEnjoyer.exe">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+               stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0-5-5m5 5 5-5M4 19h16"/></svg>
+          Descargar para Windows
+        </a>
+        <a class="btn btn-ghost" href="#como-funciona">Cómo funciona</a>
+      </div>
+      <p class="meta" id="release-meta">Windows 10 u 11 · necesita Google Chrome</p>
+    </div>
+
+    <div class="board" id="board" aria-label="Ejemplo de lo que muestra la app mientras espera una plaza">
+      <div class="board-head"><strong>Buscando plazas</strong><span>Ida · 03/12</span></div>
+      <div class="train">
+        <span class="time">07:18</span>
+        <span class="route">Tren 13003 · tu abono</span>
+        <span class="seat none">Completo</span>
+        <span class="seat free">Plaza libre</span>
+      </div>
+      <ol class="log">
+        <li>Intento 141 · sin plazas, recargando</li>
+        <li>Intento 142 · sin plazas, recargando</li>
+        <li>Intento 143 · sin plazas, recargando</li>
+        <li class="found" id="found">Intento 144 · plaza encontrada</li>
+        <li>Reservada. Termina la compra en el navegador.</li>
+      </ol>
+    </div>
+  </div>
+
+  <section id="como-funciona">
+    <div class="wrap">
+      <h2>Cómo funciona</h2>
+      <p class="sub">El programa hace la parte pesada, la de recargar, y te avisa para lo que solo puedes hacer tú.</p>
+      <ol class="steps">
+        <li><h3>Eliges el viaje</h3><p>Tu perfil de Renfe, ida o vuelta y la fecha. El abono ya fija el trayecto.</p></li>
+        <li><h3>Marcas el tren</h3><p>Te enseña los trenes de ese día y eliges el que quieres, aunque esté completo.</p></li>
+        <li><h3>Espera por ti</h3><p>Recarga la página de resultados hasta que ese tren tenga plaza, y sigue el progreso en directo.</p></li>
+        <li><h3>Terminas tú</h3><p>Reserva la plaza y te deja el navegador abierto para que completes la compra.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>Antes de empezar</h2>
+      <p class="sub">Es un único ejecutable, sin instalación. Esto es lo que conviene saber.</p>
+      <div class="cols">
+        <div>
+          <h3>Qué necesitas</h3>
+          <ul>
+            <li>Windows 10 u 11 y conexión a internet.</li>
+            <li>Google Chrome instalado. La primera búsqueda descarga su controlador y tarda un poco más.</li>
+            <li>Tu cuenta de Renfe con un abono.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Activación</h3>
+          <p>
+            La primera vez que lo abras te pedirá un nombre y un contacto para solicitar acceso. Cuando
+            se apruebe, se desbloquea solo, sin reiniciar. Las actualizaciones no necesitan otra aprobación.
+          </p>
+        </div>
+        <div>
+          <h3>Ten en cuenta</h3>
+          <ul>
+            <li>Windows avisará porque el ejecutable no está firmado: <em>Más información</em> → <em>Ejecutar de todas formas</em>.</li>
+            <li>El captcha del login de Renfe lo resuelves tú; el programa espera.</li>
+            <li>La sesión de Renfe dura 30 minutos: en esperas largas te pedirá volver a entrar.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Proyecto independiente, sin relación con Renfe. Software libre bajo licencia GPL-3.0.</span>
+    <nav aria-label="Pie">
+      <a href="https://github.com/RafitolMG/RenfeEnjoyer-Backend/releases">Versiones</a>
+      <a href="https://github.com/RafitolMG/RenfeEnjoyer-Backend/tree/ubuntu-dev">GitHub</a>
+      <a href="/admin">Administración</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+  // Swap the board to "seat found" once the last log lines have played.
+  const board = document.getElementById('board');
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  setTimeout(() => board.classList.add('done'), reduced ? 0 : 3500);
+
+  // Show which version the button downloads. Optional: the link works without it.
+  fetch('https://api.github.com/repos/RafitolMG/RenfeEnjoyer-Backend/releases/latest')
+    .then((response) => (response.ok ? response.json() : null))
+    .then((release) => {
+      if (!release) return;
+      const exe = (release.assets || []).find((asset) => asset.name === 'RenfeEnjoyer.exe');
+      // A release without the executable (the old Tkinter one) is not what the button gets.
+      if (!exe) return;
+      const size = ` · ${Math.round(exe.size / 1e6)} MB`;
+      document.getElementById('release-meta').textContent =
+        `Versión ${release.tag_name.replace(/^v/, '')}${size} · Windows 10 u 11 · necesita Google Chrome`;
+    })
+    .catch(() => {});
+</script>
+</body>
+</html>

@@ -120,3 +120,13 @@ def test_the_public_key_is_published(client: TestClient) -> None:
     from app.signing import public_key_of
 
     assert client.get("/api/v1/public-key").json() == {"public_key": public_key_of(KEY)}
+
+
+def test_the_home_page_offers_the_latest_release(client: TestClient) -> None:
+    page = client.get("/")
+    assert page.status_code == 200
+    assert "releases/latest/download/RenfeEnjoyer.exe" in page.text
+    assert 'href="/admin"' in page.text
+    logo = client.get("/static/logo.webp")
+    assert logo.status_code == 200
+    assert logo.headers["content-type"] == "image/webp"

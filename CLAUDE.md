@@ -48,7 +48,9 @@ once `/api/health` answers, and only opens the browser if the app is already up.
 data directory to `%LOCALAPPDATA%\RenfeEnjoyer`, because the bundle unpacks to a temp dir deleted on exit, and
 the SPA to the bundle's copy. PyInstaller cannot cross-compile, so the `.exe` is built by the `windows` CI job,
 which also runs the backend tests on Windows, starts the executable and checks it serves the app, then uploads
-it as the `RenfeEnjoyer-windows` artifact. On Linux the same spec builds a Linux binary, useful to test the bundle.
+it as the `RenfeEnjoyer-windows` artifact. A pushed `v*` tag also publishes it as a GitHub release
+(`gh release create … --latest`); the activation server's landing page (`activation/app/index.html`, served at
+`/`) links to `releases/latest/download/RenfeEnjoyer.exe`, so the asset name must not change. On Linux the same spec builds a Linux binary, useful to test the bundle.
 pyinstaller-hooks-contrib covers uvicorn's and websockets' dynamic imports and Selenium's data files, but not
 Selenium's driver classes: since 4.52 `webdriver.Chrome` resolves through `importlib` in a module `__getattr__`,
 so the spec lists `selenium.webdriver.chrome` as hidden imports. Without them the Windows build died on launch

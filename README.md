@@ -82,9 +82,20 @@ En Windows la app es un único ejecutable, `RenfeEnjoyer.exe`. No hace falta Pyt
 Tailscale; solo **Google Chrome** instalado. El `chromedriver` lo descarga Selenium solo la primera
 vez, así que esa primera búsqueda necesita internet y tarda algo más.
 
-**Descargarlo.** El CI lo compila en cada push. En GitHub, entra en *Actions*, abre la última
-ejecución en verde de `ubuntu-dev` y descarga el artefacto `RenfeEnjoyer-windows` (un `.zip` con
-el `.exe` dentro).
+**Descargarlo.** Desde <https://renfe.rafitolmg.dev>, o directamente la última versión en
+<https://github.com/RafitolMG/RenfeEnjoyer-Backend/releases/latest/download/RenfeEnjoyer.exe>. No hace
+falta cuenta de GitHub. El CI también lo compila en cada push y lo deja como artefacto
+`RenfeEnjoyer-windows` en *Actions*, pero esos piden cuenta y caducan a los 90 días.
+
+**Publicar una versión.** Crea y sube una etiqueta `v*` en un commit de `ubuntu-dev`:
+
+```bash
+git tag v2.1.0 && git push origin v2.1.0
+```
+
+El job `windows` del CI compila el `.exe`, lo prueba y lo publica como Release de GitHub, que pasa a
+ser la que descarga la página de inicio. Sube también `APP_VERSION` en `backend/app/config.py`, que es
+la versión que el `.exe` envía al servidor de activación.
 
 **Usarlo.** Doble clic en `RenfeEnjoyer.exe`. Se abre una consola, arranca el servidor y abre la
 app en el navegador en `http://127.0.0.1:8000`. **Cerrar la consola para la app.** Si ya estaba

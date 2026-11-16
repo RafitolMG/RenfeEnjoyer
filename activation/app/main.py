@@ -8,9 +8,12 @@ while a revocation still takes effect within that window.
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlmodel import Session, SQLModel, col, select
@@ -42,6 +45,16 @@ app = FastAPI(
 )
 
 app.include_router(auth.router)
+
+PAGES = Path(__file__).parent
+HOME_PAGE = (PAGES / "index.html").read_text(encoding="utf-8")
+app.mount("/static", StaticFiles(directory=PAGES / "static"), name="static")
+
+
+@app.get("/", response_class=HTMLResponse)
+def home() -> str:
+    """Public landing page: what the app does and where to download it."""
+    return HOME_PAGE
 
 
 # --- Desktop app -----------------------------------------------------------------------
