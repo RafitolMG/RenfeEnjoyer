@@ -16,6 +16,7 @@ import json
 import logging
 import sys
 import threading
+import time
 import urllib.error
 import urllib.request
 import uuid
@@ -104,7 +105,8 @@ class Activator:
         self.machine = machine
         self._lock = threading.Lock()
         self._status: str | None = None
-        self._checked_at: datetime | None = None
+        # Monotonic, so changing the computer's clock cannot postpone the next check.
+        self._checked_at: float | None = None
         self._error: str | None = None
 
     # --- license on disk --------------------------------------------------------------
@@ -177,7 +179,7 @@ class Activator:
         # A revocation must not be outlived by a license saved earlier.
         self._store(answer.get("license") if status == "approved" else None)
         self._status = status
-        self._checked_at = datetime.now(UTC)
+        self._checked_at = time.monotonic()
         self._error = None
 
     def _exchange(self, path: str, body: dict[str, Any]) -> None:
@@ -186,12 +188,14 @@ class Activator:
         except ActivationError as exc:
             logger.warning("Activation: %s", exc)
             self._error = str(exc)
-            self._checked_at = datetime.now(UTC)
+            self._checked_at = time.monotonic()
 
     def refresh(self, *, force: bool = False) -> None:
         with self._lock:
+            # >= rather than >: Windows' clock ticks every ~15 ms, so two readings in a
+            # row can be equal and a zero RECHECK_AFTER would otherwise never recheck.
             stale = self._checked_at is None or (
-                datetime.now(UTC) - self._checked_at > RECHECK_AFTER
+                time.monotonic() - self._checked_at >= RECHECK_AFTER.total_seconds()
             )
             if force or stale:
                 self._exchange("/api/v1/check", {"app_version": APP_VERSION})
