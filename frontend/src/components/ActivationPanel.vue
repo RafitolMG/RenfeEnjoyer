@@ -52,34 +52,28 @@ onBeforeUnmount(() => window.clearInterval(timer))
     <h2 class="card__title">Activación</h2>
 
     <template v-if="status === 'pending'">
-      <p class="lead">Solicitud enviada. Falta que el administrador apruebe este equipo.</p>
-      <p class="hint">Se comprueba sola cada 30 segundos; también puedes hacerlo ahora.</p>
+      <p class="lead">Solicitud enviada. Pendiente de aprobación.</p>
       <button class="btn btn--primary" :disabled="sending" @click="checkAgain">
         {{ sending ? 'Comprobando…' : 'Comprobar ahora' }}
       </button>
     </template>
 
     <template v-else-if="status === 'revoked'">
-      <p class="lead">El acceso de este equipo ha sido revocado.</p>
-      <p class="hint">Si crees que es un error, contacta con el administrador.</p>
+      <p class="lead">Acceso revocado.</p>
       <button class="btn btn--ghost" :disabled="sending" @click="checkAgain">
         Comprobar otra vez
       </button>
     </template>
 
     <template v-else-if="unreachable">
-      <p class="lead">No se puede contactar con el servidor de activación.</p>
-      <p class="hint">
-        Renfe Enjoyer necesita confirmar que este equipo está autorizado. Comprueba la conexión a
-        internet y vuelve a intentarlo.
-      </p>
+      <p class="lead">Sin conexión con el servidor de activación.</p>
       <button class="btn btn--primary" :disabled="sending" @click="checkAgain">
         {{ sending ? 'Conectando…' : 'Reintentar' }}
       </button>
     </template>
 
     <form v-else class="request" @submit.prevent="requestAccess">
-      <p class="lead">Este equipo todavía no tiene acceso. Solicítalo y el administrador lo revisará.</p>
+      <p class="lead">Este equipo no tiene acceso.</p>
       <div class="field">
         <label class="field__label" for="activation-name">Nombre</label>
         <input
@@ -92,7 +86,7 @@ onBeforeUnmount(() => window.clearInterval(timer))
         />
       </div>
       <div class="field">
-        <label class="field__label" for="activation-contact">Contacto (correo o teléfono)</label>
+        <label class="field__label" for="activation-contact">Correo o teléfono</label>
         <input
           id="activation-contact"
           v-model="contact"
@@ -108,7 +102,7 @@ onBeforeUnmount(() => window.clearInterval(timer))
     </form>
 
     <p v-if="error || activation.error" class="error-text">{{ error || activation.error }}</p>
-    <p class="machine">Código de este equipo: <code>{{ activation.machine_code }}</code></p>
+    <p class="machine">Equipo <code>{{ activation.machine_code }}</code></p>
   </section>
 </template>
 
@@ -131,7 +125,6 @@ onBeforeUnmount(() => window.clearInterval(timer))
   margin: 0;
 }
 
-.hint,
 .machine {
   margin: 0;
   font-size: 13px;

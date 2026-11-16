@@ -25,8 +25,7 @@
   body { margin: 0; background: var(--bg); color: var(--text);
          font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
   main { max-width: 860px; margin: 0 auto; padding: 32px 16px 64px; }
-  h1 { font-size: 22px; margin: 0 0 4px; }
-  .lead { color: var(--muted); margin: 0 0 24px; }
+  h1 { font-size: 22px; margin: 0; }
   .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
   .filters button { border: 1px solid var(--border); background: var(--surface); color: var(--text);
                     border-radius: 999px; padding: 6px 14px; font: inherit; cursor: pointer; }
@@ -46,8 +45,7 @@
   .actions .revoke { color: var(--danger); border-color: var(--danger); }
   .empty, .error { color: var(--muted); padding: 24px 0; }
   .error { color: var(--danger); }
-  .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
-  .top { margin-bottom: 20px; } .top .lead { margin-bottom: 0; }
+  .top { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
   .account { display: flex; gap: 8px; flex-wrap: wrap; }
   .ghost { font: inherit; font-size: 14px; padding: 6px 14px; border-radius: 8px; cursor: pointer;
            border: 1px solid var(--border-strong); background: transparent; color: var(--text); }
@@ -81,7 +79,6 @@
   <div class="top">
     <div>
       <h1>Activaciones</h1>
-      <p class="lead">Equipos que han pedido usar Renfe Enjoyer para Windows.</p>
     </div>
     <div class="account">
       <button id="open-password" class="ghost" type="button">Cambiar contraseña</button>
@@ -89,7 +86,7 @@
     </div>
   </div>
   <p id="initial-notice" class="notice" hidden>
-    Estás usando la contraseña inicial del servidor.
+    Sigues con la contraseña inicial.
     <button type="button" data-open-password>Cámbiala</button>
   </p>
   <div class="filters" role="group" aria-label="Filtrar">
@@ -113,7 +110,7 @@
       <label for="new">Nueva contraseña</label>
       <input id="new" name="new" type="password" autocomplete="new-password" minlength="12" required>
     </div>
-    <p class="hint">Al menos 12 caracteres. Se cerrarán las demás sesiones abiertas.</p>
+    <p class="hint">Mínimo 12 caracteres.</p>
     <div class="field">
       <label for="repeat">Repite la nueva contraseña</label>
       <input id="repeat" name="repeat" type="password" autocomplete="new-password" required>
@@ -147,7 +144,7 @@
     list.replaceChildren();
     const shown = machines.filter((m) => filter === 'all' || m.status === filter);
     if (!shown.length) {
-      list.append(el('p', { className: 'empty' }, 'No hay equipos en esta lista.'));
+      list.append(el('p', { className: 'empty' }, 'Ninguno.'));
       return;
     }
     for (const m of shown) {
@@ -168,7 +165,7 @@
         actions.append(button('revoke', 'Revocar', () => act(m.id, 'revoke')));
       }
       actions.append(button('', 'Borrar', () => {
-        if (confirm(`¿Borrar a ${m.name}? Podrá volver a solicitar acceso.`)) remove(m.id);
+        if (confirm(`¿Borrar a ${m.name}?`)) remove(m.id);
       }));
       card.append(info, el('span', { className: `badge ${m.status}` }, LABELS[m.status]), actions);
       list.append(card);
@@ -237,8 +234,8 @@
     const current = passwordForm.current.value;
     const next = passwordForm.new.value;
     if (!current || !next) return say('Rellena todos los campos.');
-    if (next.length < 12) return say('La nueva contraseña necesita al menos 12 caracteres.');
-    if (next !== passwordForm.repeat.value) return say('Las dos contraseñas nuevas no coinciden.');
+    if (next.length < 12) return say('Mínimo 12 caracteres.');
+    if (next !== passwordForm.repeat.value) return say('No coinciden.');
     saveButton.disabled = true;
     try {
       await call('/api/v1/admin/password', 'POST', { current_password: current, new_password: next });
