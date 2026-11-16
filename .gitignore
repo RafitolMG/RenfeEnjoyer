@@ -14,6 +14,9 @@ dist/
 # Local SQLite databases (hold Renfe credentials, never commit)
 *.db
 
+# Activation license a checkout writes when RENFE_ACTIVATION=1 (backend/license.json)
+license.json
+
 # Persistent Chrome profile: holds the logged-in Renfe session
 browser-profile/
 
