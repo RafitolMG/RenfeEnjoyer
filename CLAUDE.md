@@ -55,13 +55,25 @@ so the spec lists `selenium.webdriver.chrome` as hidden imports. Without them th
 (Python 3.12 evaluates `driver.py`'s `-> webdriver.Chrome` at import); on Python 3.14, which defers
 annotations, the same bundle starts and only dies at the first search, so a local Linux build does not show it.
 
+**The executable only runs on computers the activation server approves.** `activation/` is a separate FastAPI
+service (own venv, own tests, deployed on Coolify from its `Dockerfile`) that holds the Ed25519 private key and
+signs a 7-day license per approved `machine_id` (a SHA-256 of Windows' `MachineGuid`, never the raw value). The
+desktop side is `app/activation.py`: it carries only `PUBLIC_KEY`, rechecks with the server at most hourly
+(`RECHECK_AFTER`), stores the license in `DATA_DIR/license.json`, and deletes it the moment the server answers
+anything but `approved`, so a revocation is not outlived by a saved license. With the server unreachable a valid
+license keeps the app working. `POST /api/jobs/current` returns 403 without one, and the SPA swaps the search for
+`ActivationPanel`. `config.ACTIVATION_REQUIRED` is `FROZEN`; `RENFE_ACTIVATION=1` can switch it on for a
+checkout but nothing switches it off for the bundle. This is a deterrent, not protection: the source is public
+and GPL, so it guards the distributed executable only. Changing the key pair means rebuilding the `.exe`.
+
 ```bash
 cd backend  && ../.venv/bin/pytest -q            # single test: pytest tests/test_jobs_api.py::test_name
 cd backend  && ../.venv/bin/ruff check . && ../.venv/bin/ruff format --check . && ../.venv/bin/mypy
 cd frontend && npm run typecheck && npm run build
 ```
 
-CI (`.github/workflows/ci.yml`) runs exactly these on push and PR, plus the Windows job above.
+CI (`.github/workflows/ci.yml`) runs exactly these on push and PR, plus the Windows job above and an
+`activation` job (ruff, mypy, pytest in `activation/`, then builds the image and checks it starts).
 
 ## Architecture
 

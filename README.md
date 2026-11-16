@@ -100,6 +100,11 @@ Diferencias con Linux:
 - Si el puerto 8000 está ocupado, lánzalo con otro: `set RENFE_PORT=8100` y luego
   `RenfeEnjoyer.exe` desde la misma consola.
 
+**Activación.** El `.exe` solo funciona en equipos aprobados. La primera vez muestra una pantalla
+para solicitar acceso con un nombre y un contacto; la solicitud llega al servidor de activación y,
+cuando el administrador la aprueba, la app se desbloquea sola (lo comprueba cada 30 segundos). Ver
+[Servidor de activación](#servidor-de-activación).
+
 El ejecutable no está firmado, así que **Windows SmartScreen avisará** la primera vez («Windows
 protegió su PC»). Pulsa *Más información* → *Ejecutar de todas formas*.
 
@@ -116,6 +121,50 @@ cd frontend; npm ci; npm run build; cd ..
 
 PyInstaller no compila para otro sistema: el `.exe` solo se puede generar en Windows. En Linux la
 misma receta genera un binario de Linux, que sirve para probar el empaquetado.
+
+## Servidor de activación
+
+`activation/` es un servidor aparte que decide qué equipos pueden usar el `.exe` de Windows. Solo
+afecta al ejecutable: quien arranca la app desde el código no pasa por él (el código es público y
+GPL, así que la comprobación se podría quitar de todas formas).
+
+Cómo funciona:
+
+- Cada equipo se identifica con un hash de su `MachineGuid` de Windows, nunca con el valor en bruto.
+  La app muestra los 12 primeros caracteres como «código de este equipo», los mismos que ve el
+  administrador.
+- Al aprobarlo, el servidor le entrega una **licencia firmada** (Ed25519) para ese equipo y válida 7
+  días. La app la guarda en `%LOCALAPPDATA%\RenfeEnjoyer\license.json` y la renueva al consultar al
+  servidor, como mucho una vez por hora.
+- Si el servidor no responde, el equipo sigue funcionando hasta que caduque la licencia. Una
+  revocación surte efecto en la siguiente consulta (menos de una hora si el equipo tiene conexión,
+  7 días como mucho si no).
+- La app solo lleva la **clave pública**, así que no puede fabricar licencias, y una licencia
+  copiada a otro equipo no sirve.
+
+Administración: `https://renfe.rafitolmg.dev/admin`, usuario `admin` y la contraseña de
+`ADMIN_PASSWORD`. Lista las solicitudes y permite aprobar, revocar o borrar. Un equipo revocado no
+puede volver a pedir acceso; uno borrado sí.
+
+### Despliegue en Coolify
+
+1. **DNS**: un registro `A` de `renfe.rafitolmg.dev` a la IP del servidor.
+2. **Nueva aplicación** desde este repositorio público, rama `ubuntu-dev`, *Build Pack* `Dockerfile`,
+   *Base Directory* `/activation`, puerto `8000` y dominio `https://renfe.rafitolmg.dev`.
+3. **Volumen persistente** montado en `/data`. Sin él, cada despliegue borra todas las aprobaciones.
+4. **Variables de entorno**, ambas como secretas:
+   - `ACTIVATION_PRIVATE_KEY`: la clave privada.
+   - `ADMIN_PASSWORD`: una contraseña larga.
+   Sin cualquiera de las dos, el servidor se niega a arrancar.
+5. **Health check** en `/health`.
+
+Las claves se generan con `cd activation && python scripts/generate_keys.py`. La pública va en
+`PUBLIC_KEY` de `backend/app/activation.py` y la privada **solo** en Coolify. Cambiar el par invalida
+todas las licencias emitidas; los equipos aprobados siguen aprobados y reciben una nueva en la
+siguiente consulta, pero solo los `.exe` compilados con la nueva clave pública las aceptan.
+
+Opcionales: `LICENSE_DAYS` (7 por defecto) y `MAX_PENDING` (500 solicitudes pendientes como máximo).
+Para probar la app contra un servidor local: `RENFE_ACTIVATION=1` y `RENFE_ACTIVATION_URL=http://…`.
 
 ## Acceso desde el tailnet
 

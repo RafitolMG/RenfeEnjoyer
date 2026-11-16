@@ -12,6 +12,8 @@ dependencies = [
     "uvicorn[standard]>=0.30",
     "sqlmodel>=0.0.22",
     "selenium>=4.45",
+    # Verifies the activation server's signed licenses (app/activation.py).
+    "cryptography>=43",
 ]
 
 [project.optional-dependencies]

@@ -7,9 +7,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api import jobs, session, users
+from app.api import activation, jobs, session, users
 from app.bot.runner import job_manager
-from app.config import CORS_ORIGINS, FRONTEND_DIST
+from app.config import APP_VERSION, CORS_ORIGINS, FRONTEND_DIST
 from app.db.session import init_db
 
 logging.basicConfig(level=logging.INFO)
@@ -23,7 +23,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
 
 
-app = FastAPI(title="Renfe Enjoyer", version="2.0.0", lifespan=lifespan)
+app = FastAPI(title="Renfe Enjoyer", version=APP_VERSION, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -36,6 +36,7 @@ app.add_middleware(
 app.include_router(users.router)
 app.include_router(jobs.router)
 app.include_router(session.router)
+app.include_router(activation.router)
 
 
 @app.get("/api/health")

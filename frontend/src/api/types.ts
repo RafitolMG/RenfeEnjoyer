@@ -71,3 +71,14 @@ export type StreamMessage =
   | { type: 'snapshot'; status: JobStatus; events: JobEvent[] }
   | { type: 'trains'; trains: Train[] }
   | { type: 'search'; search: JobSearch }
+
+/** Whether this computer may run searches; only the Windows executable requires it. */
+export interface Activation {
+  required: boolean
+  authorized: boolean
+  /** The activation server's last answer; null if it has never been reached. */
+  status: 'unknown' | 'pending' | 'approved' | 'revoked' | null
+  error: string | null
+  expires_at: string | null
+  machine_code: string
+}

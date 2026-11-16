@@ -37,6 +37,31 @@ jobs:
       - run: npm ci
       - run: npm run build
 
+  activation:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: activation
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: pip install -e '.[dev]'
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: mypy
+      - run: pytest -q
+      - name: Build the image and check it starts
+        run: |
+          docker build -t activation .
+          key=$(python -c "from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey as K; from cryptography.hazmat.primitives.serialization import Encoding as E, PrivateFormat as P, NoEncryption as N; import base64; print(base64.urlsafe_b64encode(K.generate().private_bytes(E.Raw, P.Raw, N())).decode().rstrip('='))")
+          docker run -d --name activation -p 8000:8000 \
+            -e ACTIVATION_PRIVATE_KEY="$key" -e ADMIN_PASSWORD=ci activation
+          for i in $(seq 60); do curl -fs localhost:8000/health && break; sleep 0.5; done
+          curl -fs localhost:8000/health || (docker logs activation; exit 1)
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:8000/admin)" = 401
+
   # Runs the backend tests on Windows and builds the desktop executable there, since
   # PyInstaller cannot cross-compile. The .exe is attached to each run as an artifact.
   windows:
@@ -79,6 +104,10 @@ jobs:
             if ($health.status -ne 'ok') { throw 'El ejecutable no llegó a responder' }
             $page = Invoke-WebRequest http://127.0.0.1:8765/ -UseBasicParsing
             if ($page.Content -notmatch '<title>Renfe Enjoyer</title>') { throw 'No sirve la interfaz' }
+            $activation = Invoke-RestMethod http://127.0.0.1:8765/api/activation
+            if (-not $activation.required -or $activation.authorized) {
+              throw 'El ejecutable no exige la activación'
+            }
             if (-not (Test-Path "$env:LOCALAPPDATA\RenfeEnjoyer\renfe_enjoyer.db")) {
               throw 'No creó la base de datos en %LOCALAPPDATA%\RenfeEnjoyer'
             }

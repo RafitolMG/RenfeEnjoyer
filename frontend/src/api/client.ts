@@ -1,4 +1,4 @@
-import type { JobStatus, Profile, ProfileInput, StartJobInput } from './types'
+import type { Activation, JobStatus, Profile, ProfileInput, StartJobInput } from './types'
 
 export class ApiError extends Error {}
 
@@ -27,6 +27,16 @@ async function readErrorMessage(response: Response): Promise<string> {
 }
 
 export const api = {
+  getActivation: () => request<Activation>('/activation'),
+
+  requestActivation: (name: string, contact: string) =>
+    request<Activation>('/activation/request', {
+      method: 'POST',
+      body: JSON.stringify({ name, contact }),
+    }),
+
+  refreshActivation: () => request<Activation>('/activation/refresh', { method: 'POST' }),
+
   listProfiles: () => request<Profile[]>('/users'),
 
   createProfile: (input: ProfileInput) =>

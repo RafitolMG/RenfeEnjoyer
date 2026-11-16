@@ -8,6 +8,7 @@ from fastapi import (
     status,
 )
 
+from app.api.activation import ActivatorDep
 from app.api.deps import SessionDep
 from app.bot.renfe import PromptNotOpen, SearchRequest
 from app.bot.runner import JobConflict, TrainNotListed, job_manager
@@ -23,7 +24,14 @@ def get_current_job() -> dict[str, Any]:
 
 
 @router.post("/current", status_code=status.HTTP_202_ACCEPTED)
-def start_job(payload: JobStartRequest, session: SessionDep) -> dict[str, Any]:
+def start_job(
+    payload: JobStartRequest, session: SessionDep, activator: ActivatorDep
+) -> dict[str, Any]:
+    if not activator.is_authorized():
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Este equipo no está activado: solicita acceso en la pantalla de activación.",
+        )
     user = session.get(User, payload.user_id)
     if user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Perfil no encontrado")

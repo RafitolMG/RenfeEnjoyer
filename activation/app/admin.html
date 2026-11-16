@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Activaciones · Renfe Enjoyer</title>
+<style>
+  /* Same palette as the app: dark by default, light when the system asks for it. */
+  :root {
+    --bg: #0b0c11; --surface: #14161f; --border: #262a38; --text: #e9eaf0; --muted: #9297ab;
+    --accent: #8b5cf6; --ok: #34d399; --warn: #fbbf24; --danger: #f87171;
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f5f6fa; --surface: #ffffff; --border: #e3e5ee; --text: #1a1c25; --muted: #61667a;
+      --accent: #7c3aed; --ok: #059669; --warn: #b45309; --danger: #dc2626;
+      color-scheme: light;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .lead { color: var(--muted); margin: 0 0 24px; }
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .filters button { border: 1px solid var(--border); background: var(--surface); color: var(--text);
+                    border-radius: 999px; padding: 6px 14px; font: inherit; cursor: pointer; }
+  .filters button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .list { display: grid; gap: 10px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+          padding: 14px 16px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; }
+  .who { font-weight: 600; overflow-wrap: anywhere; }
+  .meta { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+  .badge { font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px;
+           border: 1px solid currentColor; align-self: start; justify-self: end; }
+  .pending { color: var(--warn); } .approved { color: var(--ok); } .revoked { color: var(--danger); }
+  .actions { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; }
+  .actions button { font: inherit; font-size: 14px; padding: 6px 14px; border-radius: 8px; cursor: pointer;
+                    border: 1px solid var(--border); background: transparent; color: var(--text); }
+  .actions .approve { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .actions .revoke { color: var(--danger); border-color: var(--danger); }
+  .empty, .error { color: var(--muted); padding: 24px 0; }
+  .error { color: var(--danger); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Activaciones</h1>
+  <p class="lead">Equipos que han pedido usar Renfe Enjoyer para Windows.</p>
+  <div class="filters" role="group" aria-label="Filtrar">
+    <button data-filter="pending" aria-pressed="true">Pendientes</button>
+    <button data-filter="approved" aria-pressed="false">Aprobados</button>
+    <button data-filter="revoked" aria-pressed="false">Revocados</button>
+    <button data-filter="all" aria-pressed="false">Todos</button>
+  </div>
+  <div id="list" class="list" aria-live="polite"></div>
+</main>
+<script>
+  const LABELS = { pending: 'Pendiente', approved: 'Aprobado', revoked: 'Revocado' };
+  let machines = [];
+  let filter = 'pending';
+
+  const when = (iso) => iso
+    ? new Date(iso.endsWith('Z') || iso.includes('+') ? iso : iso + 'Z')
+        .toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })
+    : 'nunca';
+
+  function el(tag, attrs = {}, text = '') {
+    const node = document.createElement(tag);
+    Object.assign(node, attrs);
+    if (text) node.textContent = text;
+    return node;
+  }
+
+  function render() {
+    const list = document.getElementById('list');
+    list.replaceChildren();
+    const shown = machines.filter((m) => filter === 'all' || m.status === filter);
+    if (!shown.length) {
+      list.append(el('p', { className: 'empty' }, 'No hay equipos en esta lista.'));
+      return;
+    }
+    for (const m of shown) {
+      const card = el('article', { className: 'card' });
+      const info = el('div');
+      info.append(
+        el('div', { className: 'who' }, `${m.name} · ${m.contact}`),
+        el('div', { className: 'meta' },
+          `Pedido ${when(m.requested_at)} · visto ${when(m.last_seen_at)}` +
+          (m.app_version ? ` · v${m.app_version}` : '')),
+        el('div', { className: 'meta' }, `Equipo ${m.machine_id.slice(0, 12)}`),
+      );
+      const actions = el('div', { className: 'actions' });
+      if (m.status !== 'approved') {
+        actions.append(button('approve', 'Aprobar', () => act(m.id, 'approve')));
+      }
+      if (m.status !== 'revoked') {
+        actions.append(button('revoke', 'Revocar', () => act(m.id, 'revoke')));
+      }
+      actions.append(button('', 'Borrar', () => {
+        if (confirm(`¿Borrar a ${m.name}? Podrá volver a solicitar acceso.`)) remove(m.id);
+      }));
+      card.append(info, el('span', { className: `badge ${m.status}` }, LABELS[m.status]), actions);
+      list.append(card);
+    }
+  }
+
+  function button(className, label, onClick) {
+    const b = el('button', { className, type: 'button' }, label);
+    b.addEventListener('click', onClick);
+    return b;
+  }
+
+  async function call(path, method = 'GET') {
+    // From the origin, not the page URL: one carrying user:password@ makes fetch refuse
+    // relative paths. The browser still sends the Basic credentials it already has.
+    const response = await fetch(location.origin + path, { method, credentials: 'same-origin' });
+    if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+    return response.status === 204 ? null : response.json();
+  }
+
+  async function load() {
+    try {
+      machines = await call('/api/v1/admin/machines');
+      render();
+    } catch (error) {
+      document.getElementById('list').replaceChildren(
+        el('p', { className: 'error' }, `No se pudo cargar la lista: ${error.message}`));
+    }
+  }
+
+  async function act(id, action) {
+    try { await call(`/api/v1/admin/machines/${id}/${action}`, 'POST'); } catch (e) { alert(e.message); }
+    load();
+  }
+
+  async function remove(id) {
+    try { await call(`/api/v1/admin/machines/${id}`, 'DELETE'); } catch (e) { alert(e.message); }
+    load();
+  }
+
+  for (const b of document.querySelectorAll('[data-filter]')) {
+    b.addEventListener('click', () => {
+      filter = b.dataset.filter;
+      for (const other of document.querySelectorAll('[data-filter]')) {
+        other.setAttribute('aria-pressed', String(other === b));
+      }
+      render();
+    });
+  }
+  load();
+  setInterval(load, 30000);
+</script>
+</body>
+</html>

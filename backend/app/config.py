@@ -29,6 +29,19 @@ HEADLESS = os.getenv("RENFE_HEADLESS", "").lower() in {"1", "true", "yes"}
 # Renfe's pages are slow and the results table is polled, so waits are generous.
 SELENIUM_TIMEOUT = int(os.getenv("RENFE_SELENIUM_TIMEOUT", "100"))
 
+APP_VERSION = "2.0.0"
+
+# The Windows executable only runs on computers the activation server has approved. The
+# variable can switch the check on for a checkout (to try it), never off for the bundle.
+ACTIVATION_REQUIRED = FROZEN or os.getenv("RENFE_ACTIVATION", "").lower() in {
+    "1",
+    "true",
+    "yes",
+}
+# Overridable to test against a local server. Pointing it elsewhere gains nothing: the
+# app only accepts licenses signed with the real server's key.
+ACTIVATION_URL = os.getenv("RENFE_ACTIVATION_URL", "https://renfe.rafitolmg.dev")
+
 # Persistent Chrome profile. Keeping the session between runs means the bot normally
 # skips the login altogether, and with it the captcha and the verification code.
 PROFILE_DIR = Path(os.getenv("RENFE_PROFILE_DIR", DATA_DIR / "browser-profile"))

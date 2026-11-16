@@ -3,7 +3,8 @@ import { computed, onMounted, ref, watch } from 'vue'
 
 import { api } from '@/api/client'
 import logoUrl from '@/assets/logo.webp'
-import type { JourneyType, Profile } from '@/api/types'
+import type { Activation, JourneyType, Profile } from '@/api/types'
+import ActivationPanel from '@/components/ActivationPanel.vue'
 import JobMonitor from '@/components/JobMonitor.vue'
 import ProfileDialog from '@/components/ProfileDialog.vue'
 import SearchForm from '@/components/SearchForm.vue'
@@ -17,6 +18,32 @@ const selectedProfileId = ref<number | null>(null)
 const dialogOpen = ref(false)
 const error = ref('')
 const sessionVerifiedAt = ref<string | null>(null)
+const activation = ref<Activation | null>(null)
+const activationLoaded = ref(false)
+
+// Only the Windows executable requires activation; a checkout never sees this screen.
+const locked = computed(() => !!activation.value?.required && !activation.value.authorized)
+
+// Approved, but the last check failed: the stored license is carrying the app for now.
+const activationNotice = computed(() => {
+  const value = activation.value
+  if (!value?.required || !value.authorized || !value.error || !value.expires_at) return ''
+  const until = new Date(value.expires_at).toLocaleDateString('es-ES', {
+    day: '2-digit',
+    month: '2-digit',
+  })
+  return `Sin conexión con el servidor de activación · válido hasta el ${until}`
+})
+
+async function loadActivation() {
+  try {
+    activation.value = await api.getActivation()
+  } catch (cause) {
+    error.value = (cause as Error).message
+  } finally {
+    activationLoaded.value = true
+  }
+}
 
 const sessionLabel = computed(() =>
   sessionVerifiedAt.value
@@ -56,7 +83,11 @@ async function run(action: () => Promise<unknown>) {
 function startSearch(input: { journey_type: JourneyType; date: string }) {
   const userId = selectedProfileId.value
   if (userId === null) return
-  run(() => api.startJob({ user_id: userId, ...input }))
+  // A refusal may mean this computer was revoked meanwhile; re-read where it stands.
+  run(() => api.startJob({ user_id: userId, ...input }).catch(async (cause) => {
+    await loadActivation()
+    throw cause
+  }))
 }
 
 async function loadSession() {
@@ -98,6 +129,7 @@ watch(
 )
 
 onMounted(() => {
+  loadActivation()
   loadProfiles()
   loadSession()
 })
@@ -111,7 +143,10 @@ onMounted(() => {
         <h1 class="brand__name">Renfe Enjoyer</h1>
       </div>
 
-      <div class="session">
+      <div v-if="!locked" class="session">
+        <span v-if="activationNotice" class="session__state session__state--warn">
+          {{ activationNotice }}
+        </span>
         <span class="session__state">
           {{ sessionLabel }}
         </span>
@@ -123,7 +158,13 @@ onMounted(() => {
 
     <p v-if="error" class="error-text banner">{{ error }}</p>
 
-    <main class="layout">
+    <ActivationPanel
+      v-if="locked && activation"
+      :activation="activation"
+      @changed="(value) => (activation = value)"
+    />
+
+    <main v-else-if="activationLoaded" class="layout">
       <SearchForm
         v-model:selected-profile-id="selectedProfileId"
         :profiles="profiles"
@@ -182,6 +223,10 @@ onMounted(() => {
 .session__state {
   font-size: 13px;
   color: var(--text-muted);
+}
+
+.session__state--warn {
+  color: var(--warning);
 }
 
 .btn--small {
