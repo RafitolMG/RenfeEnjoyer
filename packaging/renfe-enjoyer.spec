@@ -8,10 +8,12 @@
 # does on every push. On Linux the same spec produces a Linux binary, handy to check that
 # the bundle starts without a Windows machine at hand.
 #
-# Selenium, uvicorn and websockets need no hidden imports here: pyinstaller-hooks-contrib
-# already collects Selenium's data files and both servers' dynamically imported modules.
+# pyinstaller-hooks-contrib already collects Selenium's data files and the modules uvicorn
+# and websockets import dynamically. Selenium's driver classes are the exception, below.
 import sys
 from pathlib import Path
+
+from PyInstaller.utils.hooks import collect_submodules
 
 ROOT = Path(SPECPATH).parent
 DIST = ROOT / "frontend" / "dist"
@@ -37,6 +39,10 @@ analysis = Analysis(
     [str(ROOT / "packaging" / "launch.py")],
     pathex=[str(ROOT / "backend")],
     datas=[(str(DIST), "frontend/dist")],
+    # Since 4.52 `webdriver.Chrome` is resolved through importlib in a module __getattr__,
+    # which import analysis cannot see; without this the bundle dies on `webdriver.Chrome`.
+    # Python 3.12 evaluates driver.py's return annotation at import, so it dies on launch.
+    hiddenimports=collect_submodules("selenium.webdriver.chrome"),
     excludes=["tkinter", "pytest", "mypy", "ruff"],
 )
 analysis.datas = [entry for entry in analysis.datas if not foreign_manager(entry)]

@@ -49,7 +49,11 @@ data directory to `%LOCALAPPDATA%\RenfeEnjoyer`, because the bundle unpacks to a
 the SPA to the bundle's copy. PyInstaller cannot cross-compile, so the `.exe` is built by the `windows` CI job,
 which also runs the backend tests on Windows, starts the executable and checks it serves the app, then uploads
 it as the `RenfeEnjoyer-windows` artifact. On Linux the same spec builds a Linux binary, useful to test the bundle.
-Selenium, uvicorn and websockets need no hidden imports: pyinstaller-hooks-contrib already covers them.
+pyinstaller-hooks-contrib covers uvicorn's and websockets' dynamic imports and Selenium's data files, but not
+Selenium's driver classes: since 4.52 `webdriver.Chrome` resolves through `importlib` in a module `__getattr__`,
+so the spec lists `selenium.webdriver.chrome` as hidden imports. Without them the Windows build died on launch
+(Python 3.12 evaluates `driver.py`'s `-> webdriver.Chrome` at import); on Python 3.14, which defers
+annotations, the same bundle starts and only dies at the first search, so a local Linux build does not show it.
 
 ```bash
 cd backend  && ../.venv/bin/pytest -q            # single test: pytest tests/test_jobs_api.py::test_name
