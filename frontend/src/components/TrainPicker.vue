@@ -19,6 +19,18 @@ const columns = computed(() => {
   return [...labels]
 })
 
+// Labels the bot writes into the seats column (SEATS_* in app/bot/renfe.py).
+const SEATS_LABEL = 'Plazas'
+const SEATS_FREE = 'Disponible'
+
+function cellClass(column: string, value: string | undefined) {
+  if (column === DEPARTURE_LABEL) return 'picker__time'
+  if (column === SEATS_LABEL && value) {
+    return value === SEATS_FREE ? 'picker__seats--free' : 'picker__seats--full'
+  }
+  return undefined
+}
+
 function confirm() {
   if (selected.value) emit('choose', selected.value)
 }
@@ -26,10 +38,6 @@ function confirm() {
 
 <template>
   <form class="picker" @submit.prevent="confirm">
-    <p class="picker__hint">
-      Marca el tren que quieres. El bot recargará la página hasta que tenga plaza libre.
-    </p>
-
     <div class="picker__scroll">
       <table class="picker__table">
         <thead>
@@ -54,7 +62,13 @@ function confirm() {
                 :aria-label="`Tren de las ${train.departure}`"
               />
             </td>
-            <td v-for="column in columns" :key="column">{{ train.cells[column] ?? '—' }}</td>
+            <td
+              v-for="column in columns"
+              :key="column"
+              :class="cellClass(column, train.cells[column])"
+            >
+              {{ train.cells[column] ?? '—' }}
+            </td>
           </tr>
         </tbody>
       </table>
@@ -74,21 +88,21 @@ function confirm() {
   gap: 12px;
 }
 
-.picker__hint {
-  margin: 0;
-  font-size: 14px;
-  color: var(--text-muted);
-}
-
+/* A departure board: dark in both themes, monospaced, one train per row. */
 .picker__scroll {
   overflow-x: auto;
-  border: 1px solid var(--border);
+  /* Native radios follow this, so they match the board instead of the page theme. */
+  color-scheme: dark;
+  background: var(--board-bg);
+  color: var(--board-text);
+  border: 1px solid var(--board-line);
   border-radius: var(--radius-sm);
 }
 
 .picker__table {
   width: 100%;
   border-collapse: collapse;
+  font-family: var(--font-mono);
   font-size: 14px;
   font-variant-numeric: tabular-nums;
 }
@@ -96,20 +110,34 @@ function confirm() {
 .picker__table th {
   padding: 10px 12px;
   text-align: left;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
-  background: var(--surface-raised);
-  border-bottom: 1px solid var(--border);
+  letter-spacing: 0.14em;
+  color: var(--board-muted);
+  background: var(--board-raised);
+  border-bottom: 1px solid var(--board-line);
   white-space: nowrap;
 }
 
 .picker__table td {
   padding: 11px 12px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--board-line);
   white-space: nowrap;
+}
+
+.picker__seats--free {
+  color: var(--board-ok);
+}
+
+.picker__seats--full {
+  color: var(--board-muted);
+}
+
+.picker__time {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--board-warn);
 }
 
 .picker__table tbody tr {
@@ -122,11 +150,12 @@ function confirm() {
 }
 
 .picker__table tbody tr:hover {
-  background: var(--surface-raised);
+  background: var(--board-raised);
 }
 
 .picker__table tbody tr.is-selected {
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  background: color-mix(in srgb, var(--board-accent) 18%, transparent);
+  box-shadow: inset 3px 0 0 var(--board-accent);
 }
 
 .picker__radio {
@@ -134,7 +163,7 @@ function confirm() {
 }
 
 .picker__radio input {
-  accent-color: var(--accent);
+  accent-color: var(--board-accent);
   width: 16px;
   height: 16px;
   cursor: pointer;

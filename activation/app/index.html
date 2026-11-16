@@ -9,29 +9,9 @@
 <meta property="og:description" content="Vigila el tren de tu abono de Renfe y reserva en cuanto se libera una plaza.">
 <meta property="og:image" content="/static/logo.webp">
 <link rel="icon" type="image/webp" href="/static/logo.webp">
+<link rel="stylesheet" href="/static/theme.css">
 <style>
-  /* Same palette as the app: dark by default, light when the system asks for it. */
-  :root {
-    --bg: #0b0c11; --surface: #14161f; --surface-raised: #1b1e2a; --border: #262a38;
-    --border-strong: #343949; --text: #e9eaf0; --muted: #9297ab;
-    --accent: #8b5cf6; --accent-strong: #a78bfa; --ok: #34d399; --warn: #fbbf24;
-    --glow: rgb(139 92 246 / 18%);
-    --mono: ui-monospace, "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
-    color-scheme: dark;
-  }
-  @media (prefers-color-scheme: light) {
-    :root {
-      --bg: #f5f6fa; --surface: #ffffff; --surface-raised: #fbfbfe; --border: #e3e5ee;
-      --border-strong: #cfd3e1; --text: #1a1c25; --muted: #61667a;
-      --accent: #7c3aed; --accent-strong: #6d28d9; --ok: #059669; --warn: #b45309;
-      --glow: rgb(124 58 237 / 10%);
-      color-scheme: light;
-    }
-  }
-  * { box-sizing: border-box; }
-  body { margin: 0; min-height: 100vh; display: flex; flex-direction: column;
-         background: var(--bg); color: var(--text);
-         font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Inter, sans-serif; }
+  body { min-height: 100vh; display: flex; flex-direction: column; font-size: 16px; line-height: 1.55; }
   a { color: inherit; }
   /* width: 100% because body is a flex column, which would shrink each block to its content. */
   .wrap { width: 100%; max-width: 1040px; margin: 0 auto; padding: 0 20px; }
@@ -39,7 +19,7 @@
   /* --- nav --- */
   nav { display: flex; align-items: center; justify-content: space-between; padding: 22px 0; }
   .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; font-weight: 650; font-size: 18px; }
-  .brand img { width: 36px; height: 36px; border-radius: 10px; box-shadow: 0 0 0 1px var(--border-strong); }
+  .brand img { width: 36px; height: 36px; border-radius: 6px; box-shadow: 0 0 0 1px var(--border-strong); }
   .nav-link { color: var(--muted); text-decoration: none; font-size: 15px; }
   .nav-link:hover { color: var(--text); }
 
@@ -50,33 +30,32 @@
   .hero h1 em { font-style: normal; color: var(--accent-strong); }
   .hero p.lead { font-size: 18px; color: var(--muted); margin: 0 0 30px; max-width: 34em; }
   .cta { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
-  .btn { display: inline-flex; align-items: center; gap: 10px; padding: 13px 22px; border-radius: 10px;
+  .btn { display: inline-flex; align-items: center; gap: 10px; padding: 13px 22px; border-radius: 6px;
          font-weight: 600; text-decoration: none; border: 1px solid transparent; }
-  .btn-primary { background: var(--accent); color: #fff; box-shadow: 0 8px 28px var(--glow); }
-  .btn-primary:hover { background: var(--accent-strong); }
+  .btn-primary { background: var(--accent-fill); color: #fff; box-shadow: 0 8px 28px var(--glow); }
+  .btn-primary:hover { background: var(--accent-fill-hover); }
   .btn svg { width: 18px; height: 18px; flex: none; }
   main { flex: 1; display: flex; align-items: center; }
-  .meta { margin: 16px 0 0; font-size: 14px; color: var(--muted); }
+  .meta { margin: 16px 0 0; font-family: var(--mono); font-size: 13px; color: var(--muted); }
 
   /* --- the polling board: what the app shows while it waits --- */
-  .board { background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
-           box-shadow: 0 24px 60px rgb(0 0 0 / 25%), 0 0 0 6px var(--glow); overflow: hidden; }
+  /* A departure board: dark in both themes, like the ones in stations. */
+  .board { background: var(--board-bg); color: var(--board-text); border: 1px solid var(--board-line);
+           border-radius: 8px; box-shadow: 0 24px 60px rgb(0 0 0 / 30%), 0 0 0 6px var(--glow); overflow: hidden; }
   .board-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
-                padding: 16px 18px; border-bottom: 1px solid var(--border); background: var(--surface-raised); }
-  .board-head strong { font-size: 15px; }
-  .board-head span { font-size: 13px; color: var(--muted); font-family: var(--mono); }
-  .train { display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: center;
-           padding: 16px 18px; border-bottom: 1px solid var(--border); }
-  .train .time { font-family: var(--mono); font-size: 26px; font-weight: 600; letter-spacing: 0.02em; }
-  .train .route { font-size: 14px; color: var(--muted); }
-  .seat { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; border: 1px solid currentColor;
-          white-space: nowrap; }
-  .seat.none { color: var(--warn); }
-  .seat.free { color: var(--ok); display: none; }
+                padding: 14px 18px; border-bottom: 1px solid var(--board-line); background: var(--board-raised);
+                font-family: var(--mono); font-size: 12px; text-transform: uppercase; letter-spacing: 0.14em; }
+  .board-head span { color: var(--board-muted); }
+  .train { display: grid; grid-template-columns: auto 1fr auto; gap: 16px; align-items: center;
+           padding: 16px 18px; border-bottom: 1px solid var(--board-line); font-family: var(--mono); }
+  .train .time { font-size: 28px; font-weight: 600; letter-spacing: 0.04em; color: var(--board-warn); }
+  .train .route { font-size: 14px; color: var(--board-muted); }
+  .seat.none { color: var(--board-full); }
+  .seat.free { color: var(--board-ok); display: none; }
   .log { margin: 0; padding: 14px 18px 18px; list-style: none; font-family: var(--mono); font-size: 13px;
-         color: var(--muted); display: grid; gap: 6px; min-height: 148px; }
+         color: var(--board-muted); display: grid; gap: 6px; min-height: 148px; }
   .log li { opacity: 0; transform: translateY(4px); animation: line 0.4s ease forwards; }
-  .log li.found { color: var(--ok); font-weight: 600; }
+  .log li.found { color: var(--board-ok); font-weight: 600; }
   .log li:nth-child(1) { animation-delay: 0.3s; }
   .log li:nth-child(2) { animation-delay: 1.3s; }
   .log li:nth-child(3) { animation-delay: 2.3s; }
@@ -128,12 +107,12 @@
     </div>
 
     <div class="board" id="board" aria-label="Ejemplo de lo que muestra la app mientras espera una plaza">
-      <div class="board-head"><strong>Buscando plazas</strong><span>Ida · 03/12</span></div>
+      <div class="board-head"><strong>Buscando plaza</strong><span>Ida · 03/12</span></div>
       <div class="train">
         <span class="time">07:18</span>
         <span class="route">Tren 13003</span>
-        <span class="seat none">Completo</span>
-        <span class="seat free">Plaza libre</span>
+        <span class="tag seat none">Completo</span>
+        <span class="tag seat free">Plaza libre</span>
       </div>
       <ol class="log">
         <li>Intento 141 · sin plazas, recargando</li>

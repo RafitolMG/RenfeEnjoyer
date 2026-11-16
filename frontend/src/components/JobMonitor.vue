@@ -127,7 +127,7 @@ function formatTime(timestamp: string): string {
         <span>{{ line.text }}</span>
       </li>
     </ul>
-    <p v-else class="empty">El progreso de la búsqueda aparecerá aquí.</p>
+    <p v-else class="empty">Sin búsqueda en curso</p>
 
     <footer v-if="canStop" class="monitor__actions">
       <button v-if="isReserved" class="btn btn--primary" @click="emit('release')">
@@ -192,9 +192,14 @@ function formatTime(timestamp: string): string {
   color: var(--text-muted);
 }
 
+.summary dt {
+  font-family: var(--font-mono);
+}
+
 .summary dd {
   margin: 2px 0 0;
   font-weight: 600;
+  font-family: var(--font-mono);
 }
 
 .attempts {
@@ -205,10 +210,11 @@ function formatTime(timestamp: string): string {
 }
 
 .attempts__value {
+  font-family: var(--font-mono);
   font-size: 30px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: var(--accent-strong);
+  color: var(--accent);
 }
 
 .attempts__label {
@@ -254,8 +260,8 @@ function formatTime(timestamp: string): string {
   margin: 0;
   padding: 12px;
   list-style: none;
-  background: var(--bg);
-  border: 1px solid var(--border);
+  background: var(--board-bg);
+  border: 1px solid var(--board-line);
   border-radius: var(--radius-sm);
   font-family: var(--font-mono);
   font-size: 12.5px;
@@ -265,11 +271,11 @@ function formatTime(timestamp: string): string {
   display: flex;
   gap: 12px;
   padding: 2px 0;
-  color: var(--text-muted);
+  color: var(--board-muted);
 }
 
 .log__line--state {
-  color: var(--text);
+  color: var(--board-text);
 }
 
 .log__line time {

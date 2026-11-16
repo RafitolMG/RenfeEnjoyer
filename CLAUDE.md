@@ -218,5 +218,10 @@ Key invariants:
 - **Headless is opt-in** (`RENFE_HEADLESS=1`) and only useful for debugging: the user has to see the window
   to finish the purchase.
 - System Python on Arch is PEP 668 externally-managed — always install into a venv.
+- **The look is a station departure board in Renfe's palette**, dark by default. The colours come from renfe.com's
+  own design tokens (`rv-ui-kit`); the app keeps them in `frontend/src/assets/styles.css` and the activation
+  server's pages in `activation/app/static/theme.css`, which must stay in step. `--board-*` panels (train list,
+  log, the landing's example) are dark in both themes on purpose. The bot's seat labels (`SEATS_FREE`/`SEATS_FULL`)
+  are matched by `TrainPicker.vue` to colour the Plazas column.
 - `vue-tsc` is incompatible with TypeScript 7 (it requires the `typescript/lib/tsc` subpath, which TS 7
   removed from its exports), so `typescript` is pinned to the 5.x line.

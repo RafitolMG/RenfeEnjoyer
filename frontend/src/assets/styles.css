@@ -1,42 +1,64 @@
+/* Renfe's own palette, taken from the design tokens on renfe.com (rv-ui-kit):
+   brand-primary #5B064B, renfe-og #81005E, accent #9F0074, the -400/-450 tints for dark
+   backgrounds, #111318 as the darkest shade, and the crimson/ocean/green secondaries.
+   Dark is the default; light only when the system asks for it. */
 :root {
-  --bg: #0b0c11;
-  --surface: #14161f;
-  --surface-raised: #1b1e2a;
-  --border: #262a38;
-  --border-strong: #343949;
-  --text: #e9eaf0;
-  --text-muted: #9297ab;
-  --accent: #8b5cf6;
-  --accent-strong: #a78bfa;
+  --bg: #111318;
+  --surface: #181b22;
+  --surface-raised: #1f232c;
+  --border: #2a2e38;
+  --border-strong: #3a3f4b;
+  --text: #eef0f4;
+  --text-muted: #9b9fa4;
+  --accent: #d053b7;
+  --accent-strong: #d770b4;
+  --accent-fill: #9f0074;
+  --accent-fill-hover: #b7429a;
   --accent-contrast: #ffffff;
-  --success: #34d399;
-  --warning: #fbbf24;
-  --danger: #f87171;
-  --info: #60a5fa;
+  --success: #5fbf97;
+  --warning: #f5d118;
+  --danger: #ef6a8e;
+  --info: #6aa3d4;
 
-  --radius: 12px;
-  --radius-sm: 8px;
+  /* Departure-board panels stay dark in both themes, like the ones in stations. */
+  --board-bg: #0b0c10;
+  --board-raised: #14161c;
+  --board-line: #23262f;
+  --board-text: #f2f3f5;
+  --board-muted: #8d9198;
+  --board-accent: #d770b4;
+  --board-ok: #5fbf97;
+  --board-warn: #f5d118;
+
+  --brand-gradient: linear-gradient(90deg, #db3747 0%, #d62d61 23%, #81005e 49%, #5c457e 76%, #1c537f 100%);
+
+  --radius: 8px;
+  --radius-sm: 5px;
   --shadow: 0 12px 32px rgb(0 0 0 / 35%);
-  --font: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', monospace;
+  --font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Mono', 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+  color-scheme: dark;
 }
 
 @media (prefers-color-scheme: light) {
   :root {
-    --bg: #f5f6fa;
+    --bg: #f1f2f8;
     --surface: #ffffff;
-    --surface-raised: #fbfbfe;
-    --border: #e3e5ee;
-    --border-strong: #cfd3e1;
-    --text: #1a1c25;
-    --text-muted: #61667a;
-    --accent: #7c3aed;
-    --accent-strong: #6d28d9;
-    --success: #059669;
-    --warning: #b45309;
-    --danger: #dc2626;
-    --info: #2563eb;
+    --surface-raised: #faf1f9;
+    --border: #dde3e8;
+    --border-strong: #c3cad2;
+    --text: #0d0d0d;
+    --text-muted: #6a6e73;
+    --accent: #9f0074;
+    --accent-strong: #81005e;
+    --accent-fill: #5b064b;
+    --accent-fill-hover: #81005e;
+    --success: #2f7558;
+    --warning: #8a6400;
+    --danger: #c4214f;
+    --info: #1c537f;
     --shadow: 0 10px 28px rgb(20 22 35 / 10%);
+    color-scheme: light;
   }
 }
 
@@ -55,6 +77,16 @@ body {
   font-size: 15px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
+}
+
+/* The signage band along the top of every screen. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0 0 auto;
+  height: 4px;
+  background: var(--brand-gradient);
+  z-index: 10;
 }
 
 h1,
@@ -80,10 +112,11 @@ select {
 }
 
 .card__title {
-  font-size: 13px;
+  font-family: var(--font-mono);
+  font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.14em;
   color: var(--text-muted);
   margin-bottom: 16px;
 }
@@ -152,12 +185,12 @@ select {
 }
 
 .btn--primary {
-  background: var(--accent);
+  background: var(--accent-fill);
   color: var(--accent-contrast);
 }
 
 .btn--primary:not(:disabled):hover {
-  background: var(--accent-strong);
+  background: var(--accent-fill-hover);
 }
 
 .btn--ghost {

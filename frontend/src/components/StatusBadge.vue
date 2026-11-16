@@ -24,10 +24,14 @@ const pulsing = computed(() => isWorking(props.state))
   align-items: center;
   gap: 8px;
   padding: 5px 12px 5px 10px;
-  border-radius: 999px;
+  border-radius: 3px;
   border: 1px solid currentcolor;
-  font-size: 13px;
+  background: color-mix(in srgb, currentcolor 10%, transparent);
+  font-family: var(--font-mono);
+  font-size: 12px;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
 }
 
 .badge--muted {
