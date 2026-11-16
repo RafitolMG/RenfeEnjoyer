@@ -16,3 +16,6 @@ dist/
 
 # Persistent Chrome profile: holds the logged-in Renfe session
 browser-profile/
+
+# IDE settings (per developer)
+.idea/
