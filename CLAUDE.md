@@ -14,7 +14,7 @@ Despite the `-Backend` repo name there is no separate frontend repo — this is 
 - `backend/` — FastAPI app wrapping the Selenium bot, SQLite for profiles.
 - `frontend/` — Vue 3 + TypeScript SPA (Vite) that launches searches and streams progress.
 
-It was a Tkinter desktop app until the v2 restructure; that version lives on the `ubuntu-stable` branch.
+It was a Tkinter desktop app until the v2 restructure; that version is still what `main` holds.
 
 ## Running & building
 

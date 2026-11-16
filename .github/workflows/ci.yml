@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, develop, ubuntu-stable, ubuntu-dev]
+    branches: [main, develop, ubuntu-dev]
   pull_request:
 
 jobs:
