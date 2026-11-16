@@ -142,9 +142,23 @@ Cómo funciona:
 - La app solo lleva la **clave pública**, así que no puede fabricar licencias, y una licencia
   copiada a otro equipo no sirve.
 
-Administración: `https://renfe.rafitolmg.dev/admin`, usuario `admin` y la contraseña de
-`ADMIN_PASSWORD`. Lista las solicitudes y permite aprobar, revocar o borrar. Un equipo revocado no
-puede volver a pedir acceso; uno borrado sí.
+Administración: `https://renfe.rafitolmg.dev/admin`, que lleva a una pantalla de login. Lista las
+solicitudes y permite aprobar, revocar o borrar. Un equipo revocado no puede volver a pedir acceso;
+uno borrado sí.
+
+- **Contraseña.** La primera vez es la de `ADMIN_PASSWORD`, y la página avisa hasta que la cambias
+  con **Cambiar contraseña** (pide la actual y una nueva de al menos 12 caracteres). Desde entonces
+  manda la nueva, guardada como hash `scrypt` en la base de datos, y `ADMIN_PASSWORD` se ignora.
+  Cambiarla cierra las demás sesiones abiertas.
+- **Sesión.** Dura 12 horas, en una cookie `HttpOnly`, `Secure` y `SameSite=Strict`; en la base de
+  datos solo se guarda un hash. **Cerrar sesión** la invalida en el servidor.
+- **Intentos fallidos.** Tras 10 en 10 minutos desde la misma dirección, el login se bloquea un rato.
+- **Si olvidas la contraseña**, vuelve a la de `ADMIN_PASSWORD` ejecutando en el contenedor (desde
+  la terminal de la app en Coolify, o por SSH con `docker exec`):
+
+  ```bash
+  python -m app.reset_admin
+  ```
 
 ### Despliegue en Coolify
 
@@ -154,7 +168,7 @@ puede volver a pedir acceso; uno borrado sí.
 3. **Volumen persistente** montado en `/data`. Sin él, cada despliegue borra todas las aprobaciones.
 4. **Variables de entorno**, ambas como secretas:
    - `ACTIVATION_PRIVATE_KEY`: la clave privada.
-   - `ADMIN_PASSWORD`: una contraseña larga.
+   - `ADMIN_PASSWORD`: la contraseña inicial de admin, que conviene cambiar desde la página.
    Sin cualquiera de las dos, el servidor se niega a arrancar.
 5. **Health check** en `/health`.
 

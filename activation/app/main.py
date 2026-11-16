@@ -6,30 +6,20 @@ An approved computer gets a license signed with this server's private key that l
 while a revocation still takes effect within that window.
 """
 
-import secrets
-import threading
-import time
-from collections import defaultdict, deque
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import Annotated, Any
 
-from fastapi import Depends, FastAPI, HTTPException, Request, status
-from fastapi.responses import HTMLResponse
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi import FastAPI, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func
-from sqlmodel import Session, SQLModel, col, create_engine, select
+from sqlmodel import Session, SQLModel, col, select
 
-from app import config
+from app import auth, config
+from app.auth import AdminDep
+from app.db import SessionDep, engine
 from app.models import Machine, MachineStatus, utcnow
 from app.signing import issue_license, load_private_key, public_key_of
-
-engine = create_engine(
-    f"sqlite:///{config.DATABASE_PATH}", connect_args={"check_same_thread": False}
-)
-ADMIN_PAGE = (Path(__file__).parent / "admin.html").read_text(encoding="utf-8")
 
 
 @asynccontextmanager
@@ -51,13 +41,7 @@ app = FastAPI(
     openapi_url=None,
 )
 
-
-def get_session() -> Iterator[Session]:
-    with Session(engine) as session:
-        yield session
-
-
-SessionDep = Annotated[Session, Depends(get_session)]
+app.include_router(auth.router)
 
 
 # --- Desktop app -----------------------------------------------------------------------
@@ -147,49 +131,7 @@ def public_key(request: Request) -> dict[str, str]:
     return {"public_key": public_key_of(request.app.state.signing_key)}
 
 
-# --- Admin -----------------------------------------------------------------------------
-
-basic = HTTPBasic(realm="Renfe Enjoyer admin")
-
-# Failed logins per client, to make guessing the password impractical.
-_FAILURES: defaultdict[str, deque[float]] = defaultdict(deque)
-_FAILURES_LOCK = threading.Lock()
-MAX_FAILURES = 10
-FAILURE_WINDOW = 600.0
-
-
-def require_admin(
-    request: Request, credentials: Annotated[HTTPBasicCredentials, Depends(basic)]
-) -> None:
-    client = request.client.host if request.client else "?"
-    now = time.monotonic()
-    with _FAILURES_LOCK:
-        failures = _FAILURES[client]
-        while failures and now - failures[0] > FAILURE_WINDOW:
-            failures.popleft()
-        if len(failures) >= MAX_FAILURES:
-            raise HTTPException(
-                status.HTTP_429_TOO_MANY_REQUESTS,
-                "Demasiados intentos fallidos; espera unos minutos.",
-            )
-        valid = secrets.compare_digest(
-            credentials.password.encode(), config.ADMIN_PASSWORD.encode()
-        ) and secrets.compare_digest(credentials.username.encode(), b"admin")
-        if not valid:
-            failures.append(now)
-            raise HTTPException(
-                status.HTTP_401_UNAUTHORIZED,
-                "Credenciales incorrectas",
-                headers={"WWW-Authenticate": 'Basic realm="Renfe Enjoyer admin"'},
-            )
-
-
-AdminDep = Annotated[None, Depends(require_admin)]
-
-
-@app.get("/admin", response_class=HTMLResponse)
-def admin_page(_: AdminDep) -> str:
-    return ADMIN_PAGE
+# --- Admin (login, sessions and password live in app/auth.py) -----------------------
 
 
 @app.get("/api/v1/admin/machines")

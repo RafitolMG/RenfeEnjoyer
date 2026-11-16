@@ -63,8 +63,12 @@ desktop side is `app/activation.py`: it carries only `PUBLIC_KEY`, rechecks with
 anything but `approved`, so a revocation is not outlived by a saved license. With the server unreachable a valid
 license keeps the app working. `POST /api/jobs/current` returns 403 without one, and the SPA swaps the search for
 `ActivationPanel`. `config.ACTIVATION_REQUIRED` is `FROZEN`; `RENFE_ACTIVATION=1` can switch it on for a
-checkout but nothing switches it off for the bundle. This is a deterrent, not protection: the source is public
-and GPL, so it guards the distributed executable only. Changing the key pair means rebuilding the `.exe`.
+checkout but nothing switches it off for the bundle. The admin side (`activation/app/auth.py`) is a login
+form with a server-side session (only the token's SHA-256 is stored, cookie `HttpOnly`/`SameSite=Strict`, `Secure`
+over https via the proxy headers). `ADMIN_PASSWORD` is only the initial password: once changed, an scrypt hash in
+`AdminCredential` wins, a change signs out the other sessions, and `python -m app.reset_admin` falls back to the
+variable. This is a deterrent, not protection: the source is public and GPL, so it guards the distributed
+executable only. Changing the key pair means rebuilding the `.exe`.
 
 ```bash
 cd backend  && ../.venv/bin/pytest -q            # single test: pytest tests/test_jobs_api.py::test_name

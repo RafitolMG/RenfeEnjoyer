@@ -60,7 +60,8 @@ jobs:
             -e ACTIVATION_PRIVATE_KEY="$key" -e ADMIN_PASSWORD=ci activation
           for i in $(seq 60); do curl -fs localhost:8000/health && break; sleep 0.5; done
           curl -fs localhost:8000/health || (docker logs activation; exit 1)
-          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:8000/admin)" = 401
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:8000/admin)" = 303
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:8000/api/v1/admin/machines)" = 401
 
   # Runs the backend tests on Windows and builds the desktop executable there, since
   # PyInstaller cannot cross-compile. The .exe is attached to each run as an artifact.

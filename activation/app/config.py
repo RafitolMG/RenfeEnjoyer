@@ -3,6 +3,8 @@ from pathlib import Path
 
 # Both secrets are required: without them the server would either issue licenses nobody
 # can verify or leave the admin page open, so it refuses to start instead.
+# ADMIN_PASSWORD is only the initial password: once the admin changes it, the hash in the
+# database wins.
 PRIVATE_KEY = os.getenv("ACTIVATION_PRIVATE_KEY", "")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 

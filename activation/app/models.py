@@ -25,3 +25,23 @@ class Machine(SQLModel, table=True):
     decided_at: datetime | None = None
     last_seen_at: datetime | None = None
     app_version: str | None = None
+
+
+def as_utc(moment: datetime) -> datetime:
+    """SQLite hands datetimes back without their zone; every one stored here is UTC."""
+    return moment if moment.tzinfo else moment.replace(tzinfo=UTC)
+
+
+class AdminCredential(SQLModel, table=True):
+    """The admin password once it has been changed; until then ADMIN_PASSWORD applies."""
+
+    id: int = Field(default=1, primary_key=True)
+    password_hash: str
+    updated_at: datetime = Field(default_factory=utcnow)
+
+
+class AdminSession(SQLModel, table=True):
+    # Only the token's hash is stored, so a copy of the database logs nobody in.
+    token_hash: str = Field(primary_key=True)
+    created_at: datetime = Field(default_factory=utcnow)
+    expires_at: datetime

@@ -26,14 +26,27 @@ os.environ["ACTIVATION_PRIVATE_KEY"] = b64encode(
 from fastapi.testclient import TestClient  # noqa: E402
 from sqlmodel import SQLModel  # noqa: E402
 
-from app import main  # noqa: E402
+from app import auth, main  # noqa: E402
+from app.db import engine  # noqa: E402
 
-ADMIN = ("admin", "correct horse")
+INITIAL_PASSWORD = "correct horse"
 
 
 @pytest.fixture
 def client() -> Iterator[TestClient]:
-    SQLModel.metadata.drop_all(main.engine)
-    main._FAILURES.clear()
+    SQLModel.metadata.drop_all(engine)
+    auth._FAILURES.clear()
     with TestClient(main.app) as test_client:
         yield test_client
+
+
+def log_in(client: TestClient, password: str = INITIAL_PASSWORD) -> None:
+    response = client.post("/api/v1/admin/login", json={"password": password})
+    assert response.status_code == 204, response.text
+
+
+@pytest.fixture
+def admin(client: TestClient) -> TestClient:
+    """The same client, signed in as the admin."""
+    log_in(client)
+    return client
