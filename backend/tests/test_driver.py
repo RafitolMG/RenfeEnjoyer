@@ -1,4 +1,5 @@
 import socket
+import sys
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -21,6 +22,8 @@ def bare_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
 
 @pytest.fixture
 def desktop_session(bare_environment: Path) -> Iterator[Path]:
+    if not sys.platform.startswith("linux"):
+        pytest.skip("Wayland sockets only exist on Linux")
     listener = socket.socket(socket.AF_UNIX)
     listener.bind(str(bare_environment / "wayland-1"))
     (bare_environment / "wayland-1.lock").touch()
@@ -39,6 +42,16 @@ def test_a_server_outside_the_desktop_opens_the_browser_on_it(
 def test_without_a_desktop_session_nothing_is_invented(bare_environment: Path) -> None:
     (bare_environment / "wayland-0").touch()  # a plain file, not a live socket
     assert "WAYLAND_DISPLAY" not in driver.browser_environment()
+
+
+def test_windows_needs_no_display_lookup(
+    bare_environment: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Windows has no os.getuid(), so the Linux lookup must not run there at all."""
+    monkeypatch.setattr(driver.sys, "platform", "win32")
+    monkeypatch.delenv("XDG_RUNTIME_DIR")
+    monkeypatch.delattr(driver.os, "getuid", raising=False)
+    assert driver.browser_environment() == dict(driver.os.environ)
 
 
 @pytest.mark.parametrize("variable", ["WAYLAND_DISPLAY", "DISPLAY"])

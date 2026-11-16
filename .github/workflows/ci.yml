@@ -36,3 +36,56 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - run: npm run build
+
+  # Runs the backend tests on Windows and builds the desktop executable there, since
+  # PyInstaller cannot cross-compile. The .exe is attached to each run as an artifact.
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: pip install -e './backend[dev,build]'
+      - name: Backend tests
+        working-directory: backend
+        run: pytest -q
+      - name: Build the frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+      - run: pyinstaller --noconfirm packaging/renfe-enjoyer.spec
+      - name: Start the executable and check it serves the app
+        shell: pwsh
+        env:
+          LOCALAPPDATA: ${{ runner.temp }}
+          RENFE_NO_BROWSER: '1'
+          RENFE_PORT: '8765'
+        run: |
+          $app = Start-Process dist\RenfeEnjoyer.exe -PassThru -NoNewWindow
+          try {
+            $health = $null
+            for ($i = 0; $i -lt 120 -and $health.status -ne 'ok'; $i++) {
+              Start-Sleep -Milliseconds 500
+              try { $health = Invoke-RestMethod http://127.0.0.1:8765/api/health } catch {}
+            }
+            if ($health.status -ne 'ok') { throw 'El ejecutable no llegó a responder' }
+            $page = Invoke-WebRequest http://127.0.0.1:8765/ -UseBasicParsing
+            if ($page.Content -notmatch '<title>Renfe Enjoyer</title>') { throw 'No sirve la interfaz' }
+            if (-not (Test-Path "$env:LOCALAPPDATA\RenfeEnjoyer\renfe_enjoyer.db")) {
+              throw 'No creó la base de datos en %LOCALAPPDATA%\RenfeEnjoyer'
+            }
+          } finally {
+            Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue
+          }
+      - uses: actions/upload-artifact@v7
+        with:
+          name: RenfeEnjoyer-windows
+          path: dist/RenfeEnjoyer.exe
+          if-no-files-found: error

@@ -42,13 +42,22 @@ advertises the full MagicDNS name, not the IP (which changes when the node re-re
 mounts `frontend/dist` at `/` only when that directory exists, after the API routers so the catch-all does
 not shadow them; in dev the mount is simply absent.
 
+**Windows ships as a single PyInstaller executable**, not through these scripts. `packaging/renfe-enjoyer.spec`
+bundles the built SPA and runs `app.desktop`, which serves on `127.0.0.1` only (no Tailscale), opens the browser
+once `/api/health` answers, and only opens the browser if the app is already up. `config.FROZEN` switches the
+data directory to `%LOCALAPPDATA%\RenfeEnjoyer`, because the bundle unpacks to a temp dir deleted on exit, and
+the SPA to the bundle's copy. PyInstaller cannot cross-compile, so the `.exe` is built by the `windows` CI job,
+which also runs the backend tests on Windows, starts the executable and checks it serves the app, then uploads
+it as the `RenfeEnjoyer-windows` artifact. On Linux the same spec builds a Linux binary, useful to test the bundle.
+Selenium, uvicorn and websockets need no hidden imports: pyinstaller-hooks-contrib already covers them.
+
 ```bash
 cd backend  && ../.venv/bin/pytest -q            # single test: pytest tests/test_jobs_api.py::test_name
 cd backend  && ../.venv/bin/ruff check . && ../.venv/bin/ruff format --check . && ../.venv/bin/mypy
 cd frontend && npm run typecheck && npm run build
 ```
 
-CI (`.github/workflows/ci.yml`) runs exactly these on push and PR.
+CI (`.github/workflows/ci.yml`) runs exactly these on push and PR, plus the Windows job above.
 
 ## Architecture
 
@@ -178,6 +187,12 @@ Key invariants:
   `XDG_RUNTIME_DIR` when neither `WAYLAND_DISPLAY` nor `DISPLAY` is set. Selenium's `Service(env=...)`
   *replaces* the process environment rather than extending it, so the whole mapping is passed. With no
   desktop session logged in at all there is nothing to open on; that surfaces as `BrowserUnavailable`.
+- **Windows has no display lookup and no `os.getuid()`**, so `browser_environment()` returns the environment
+  untouched on anything but Linux, and the Wayland-socket tests skip there (no `AF_UNIX` on Windows Python).
+  Selenium Manager finds Chrome on Windows by itself; `BROWSER_BINARIES` simply matches nothing.
+- **On Windows uvicorn can bind a port another program already holds**, because it sets `SO_REUSEADDR`,
+  which there means "share". `tests/test_desktop.py` sets `SO_EXCLUSIVEADDRUSE` on its listener for that
+  reason; otherwise the busy-port test starts a server that never returns.
 - **Headless is opt-in** (`RENFE_HEADLESS=1`) and only useful for debugging: the user has to see the window
   to finish the purchase.
 - System Python on Arch is PEP 668 externally-managed — always install into a venv.

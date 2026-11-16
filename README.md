@@ -19,6 +19,8 @@ Monorepo con dos piezas:
 
 ## Puesta en marcha
 
+Esto es para Linux. En Windows hay un ejecutable que no necesita nada de esto: ver [Windows](#windows).
+
 Una sola vez en cada equipo:
 
 ```bash
@@ -74,6 +76,47 @@ cd backend
 PYTHONPATH=. ../.venv/bin/python scripts/migrate_legacy_db.py
 ```
 
+## Windows
+
+En Windows la app es un único ejecutable, `RenfeEnjoyer.exe`. No hace falta Python, Node ni
+Tailscale; solo **Google Chrome** instalado. El `chromedriver` lo descarga Selenium solo la primera
+vez, así que esa primera búsqueda necesita internet y tarda algo más.
+
+**Descargarlo.** El CI lo compila en cada push. En GitHub, entra en *Actions*, abre la última
+ejecución en verde de `ubuntu-dev` y descarga el artefacto `RenfeEnjoyer-windows` (un `.zip` con
+el `.exe` dentro).
+
+**Usarlo.** Doble clic en `RenfeEnjoyer.exe`. Se abre una consola, arranca el servidor y abre la
+app en el navegador en `http://127.0.0.1:8000`. **Cerrar la consola para la app.** Si ya estaba
+abierta, un segundo doble clic solo vuelve a abrir el navegador.
+
+Diferencias con Linux:
+
+- **Solo se puede usar desde el propio PC.** Escucha en `127.0.0.1`, no en Tailscale ni en la red
+  local, así que no se abre desde el móvil.
+- **Los datos se guardan en `%LOCALAPPDATA%\RenfeEnjoyer`**: los perfiles en `renfe_enjoyer.db`
+  y las sesiones de Renfe en `browser-profile\`. Sobreviven a cambiar de versión del `.exe`; para
+  empezar de cero, borra esa carpeta.
+- Si el puerto 8000 está ocupado, lánzalo con otro: `set RENFE_PORT=8100` y luego
+  `RenfeEnjoyer.exe` desde la misma consola.
+
+El ejecutable no está firmado, así que **Windows SmartScreen avisará** la primera vez («Windows
+protegió su PC»). Pulsa *Más información* → *Ejecutar de todas formas*.
+
+**Compilarlo a mano**, en un Windows con Python 3.12+ y Node 20+:
+
+```powershell
+git clone -b ubuntu-dev https://github.com/RafitolMG/RenfeEnjoyer-Backend.git
+cd RenfeEnjoyer-Backend
+python -m venv .venv
+.venv\Scripts\pip install -e ".\backend[build]"
+cd frontend; npm ci; npm run build; cd ..
+.venv\Scripts\pyinstaller --noconfirm packaging\renfe-enjoyer.spec   # deja dist\RenfeEnjoyer.exe
+```
+
+PyInstaller no compila para otro sistema: el `.exe` solo se puede generar en Windows. En Linux la
+misma receta genera un binario de Linux, que sirve para probar el empaquetado.
+
 ## Acceso desde el tailnet
 
 `renfe` sirve la API y el frontend en un único puerto, atado a la IP de Tailscale del equipo, así
@@ -100,7 +143,8 @@ El bot guarda el perfil del navegador, así que **normalmente no inicia sesión*
 sesión anterior y se salta el login, el captcha y la verificación. Solo cuando la sesión caduca
 vuelve a pedirte esos pasos.
 
-Hay **un perfil por cuenta de Renfe**, bajo `backend/browser-profile/<hash del correo>/`. Compartir
+Hay **un perfil por cuenta de Renfe**, bajo `backend/browser-profile/<hash del correo>/` (en Windows,
+`%LOCALAPPDATA%\RenfeEnjoyer\browser-profile\`). Compartir
 uno solo haría que el bot buscase con la cuenta que hubiera iniciado sesión la última vez, no con
 la del perfil elegido.
 

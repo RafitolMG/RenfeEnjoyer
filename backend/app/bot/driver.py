@@ -2,6 +2,7 @@ import hashlib
 import logging
 import os
 import shutil
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -102,6 +103,10 @@ def browser_environment() -> dict[str, str]:
     Wayland session is running for this user, the browser opens its window there.
     """
     env = dict(os.environ)
+    # Only Linux has display sockets to find; Windows always opens the window on the
+    # desktop of the user running the server, and has no os.getuid() either.
+    if not sys.platform.startswith("linux"):
+        return env
     if HEADLESS or env.get("WAYLAND_DISPLAY") or env.get("DISPLAY"):
         return env
 

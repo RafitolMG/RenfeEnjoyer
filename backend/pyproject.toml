@@ -16,6 +16,8 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "httpx>=0.27", "ruff>=0.6", "mypy>=1.11"]
+# Only to package the desktop executable (packaging/renfe-enjoyer.spec).
+build = ["pyinstaller>=6.10"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]

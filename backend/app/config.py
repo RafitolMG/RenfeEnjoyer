@@ -1,17 +1,28 @@
 import os
+import sys
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-DATABASE_PATH = Path(os.getenv("RENFE_DB_PATH", BASE_DIR / "renfe_enjoyer.db"))
+# Inside the PyInstaller executable the code and the built SPA are unpacked to a temporary
+# directory that is deleted on exit, so the user's data has to live somewhere else.
+FROZEN = getattr(sys, "frozen", False)
+
+if FROZEN:
+    _BUNDLE_DIR = Path(getattr(sys, "_MEIPASS", BASE_DIR))
+    DATA_DIR = Path(os.getenv("LOCALAPPDATA") or Path.home()) / "RenfeEnjoyer"
+    FRONTEND_DIST = _BUNDLE_DIR / "frontend" / "dist"
+else:
+    DATA_DIR = BASE_DIR
+    # Built SPA. When present it is served from this app, so there is a single origin
+    # and no CORS involved; in development Vite serves it instead.
+    FRONTEND_DIST = BASE_DIR.parent / "frontend" / "dist"
+
+DATABASE_PATH = Path(os.getenv("RENFE_DB_PATH", DATA_DIR / "renfe_enjoyer.db"))
 DATABASE_URL = f"sqlite:///{DATABASE_PATH}"
 
 # Vite dev server; in production the SPA is served from the same origin.
 CORS_ORIGINS = os.getenv("RENFE_CORS_ORIGINS", "http://localhost:5173").split(",")
-
-# Built SPA. When present it is served from this app, so there is a single origin
-# and no CORS involved; in development Vite serves it instead.
-FRONTEND_DIST = BASE_DIR.parent / "frontend" / "dist"
 
 HEADLESS = os.getenv("RENFE_HEADLESS", "").lower() in {"1", "true", "yes"}
 
@@ -20,4 +31,4 @@ SELENIUM_TIMEOUT = int(os.getenv("RENFE_SELENIUM_TIMEOUT", "100"))
 
 # Persistent Chrome profile. Keeping the session between runs means the bot normally
 # skips the login altogether, and with it the captcha and the verification code.
-PROFILE_DIR = Path(os.getenv("RENFE_PROFILE_DIR", BASE_DIR / "browser-profile"))
+PROFILE_DIR = Path(os.getenv("RENFE_PROFILE_DIR", DATA_DIR / "browser-profile"))

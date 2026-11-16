@@ -19,3 +19,6 @@ browser-profile/
 
 # IDE settings (per developer)
 .idea/
+
+# PyInstaller output (packaging/renfe-enjoyer.spec)
+build/
