@@ -41,11 +41,17 @@ def parse_version(text: str) -> tuple[int, int, int] | None:
 
 
 @dataclass(frozen=True)
-class GitHubRelease:
-    version: str
+class Asset:
     url: str
     sha256: str
     size: int
+
+
+@dataclass(frozen=True)
+class GitHubRelease:
+    version: str
+    # By platform ("windows", "linux"); only builds GitHub reports a digest for.
+    assets: dict[str, Asset]
     notes: str
     created_at: str
 
@@ -73,24 +79,31 @@ def _github(path: str) -> Any:
 
 
 def _from_github(release: dict[str, Any]) -> GitHubRelease | None:
-    """The release's executable, if it is a final build that carries one with a digest."""
+    """The release's builds, if it is final and at least one carries a digest."""
     if release.get("draft") or release.get("prerelease"):
         return None
     version = parse_version(str(release.get("tag_name", "")))
     if version is None:
         return None
+    names = {name: platform for platform, name in config.RELEASE_ASSETS.items()}
+    assets: dict[str, Asset] = {}
     for asset in release.get("assets") or []:
         digest = str(asset.get("digest") or "")
-        if asset.get("name") == config.RELEASE_ASSET and digest.startswith("sha256:"):
-            return GitHubRelease(
-                version=".".join(map(str, version)),
+        platform = names.get(str(asset.get("name")))
+        if platform and digest.startswith("sha256:"):
+            assets[platform] = Asset(
                 url=str(asset["browser_download_url"]),
                 sha256=digest.removeprefix("sha256:"),
                 size=int(asset.get("size") or 0),
-                notes=str(release.get("body") or ""),
-                created_at=str(release.get("published_at") or ""),
             )
-    return None
+    if not assets:
+        return None
+    return GitHubRelease(
+        version=".".join(map(str, version)),
+        assets=assets,
+        notes=str(release.get("body") or ""),
+        created_at=str(release.get("published_at") or ""),
+    )
 
 
 def fetch_releases() -> list[GitHubRelease]:
@@ -117,20 +130,37 @@ def policy(session: Session) -> UpdatePolicy:
     return session.get(UpdatePolicy, 1) or UpdatePolicy()
 
 
-def signed_update(session: Session, key: Ed25519PrivateKey) -> dict[str, str] | None:
-    """The newest published version, signed for the app to verify; None if none."""
-    releases = published(session)
-    if not releases:
+def asset_for(release: PublishedRelease, platform: str) -> Asset | None:
+    if platform == "windows":
+        return Asset(url=release.url, sha256=release.sha256, size=release.size)
+    if platform == "linux" and release.linux_url and release.linux_sha256:
+        return Asset(release.linux_url, release.linux_sha256, release.linux_size or 0)
+    return None
+
+
+def signed_update(
+    session: Session, key: Ed25519PrivateKey, platform: str = "windows"
+) -> dict[str, str] | None:
+    """The newest published build for this platform, signed; None if there is none."""
+    found = next(
+        (
+            (release, asset)
+            for release in published(session)
+            if (asset := asset_for(release, platform)) is not None
+        ),
+        None,
+    )
+    if found is None:
         return None
-    latest = releases[0]
+    release, asset = found
     payload = json.dumps(
         {
             # Keeps an update from passing for a license, which the same key signs.
             "kind": "update",
-            "version": latest.version,
-            "url": latest.url,
-            "sha256": latest.sha256,
-            "size": latest.size,
+            "version": release.version,
+            "url": asset.url,
+            "sha256": asset.sha256,
+            "size": asset.size,
             "min_version": policy(session).min_version,
         },
         separators=(",", ":"),

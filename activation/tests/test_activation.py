@@ -126,6 +126,7 @@ def test_the_home_page_offers_the_latest_release(client: TestClient) -> None:
     page = client.get("/")
     assert page.status_code == 200
     assert "releases/latest/download/RenfeEnjoyer.exe" in page.text
+    assert "releases/latest/download/RenfeEnjoyer-linux" in page.text
     assert 'href="/admin"' in page.text
     logo = client.get("/static/logo.webp")
     assert logo.status_code == 200

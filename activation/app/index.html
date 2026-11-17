@@ -34,6 +34,9 @@
          font-weight: 600; text-decoration: none; border: 1px solid transparent; }
   .btn-primary { background: var(--accent-fill); color: #fff; box-shadow: 0 8px 28px var(--glow); }
   .btn-primary:hover { background: var(--accent-fill-hover); }
+  .btn-ghost { border: 1px solid var(--border-strong); color: var(--text); }
+  .btn-ghost:hover { border-color: var(--accent); }
+  [hidden] { display: none !important; }
   .btn svg { width: 18px; height: 18px; flex: none; }
   main { flex: 1; display: flex; align-items: center; }
   .meta { margin: 16px 0 0; font-family: var(--mono); font-size: 13px; color: var(--muted); }
@@ -102,8 +105,13 @@
                stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0-5-5m5 5 5-5M4 19h16"/></svg>
           Descargar para Windows
         </a>
+        <a class="btn btn-ghost" id="download-linux"
+           href="https://github.com/RafitolMG/RenfeEnjoyer/releases/latest/download/RenfeEnjoyer-linux">
+          Linux
+        </a>
       </div>
       <p class="meta" id="release-meta">Windows 10 u 11 · requiere Chrome</p>
+      <p class="meta" id="linux-meta">Linux x86_64: <code>chmod +x RenfeEnjoyer-linux</code> y ejecútalo desde una terminal</p>
     </div>
 
     <div class="board" id="board" aria-label="Ejemplo de lo que muestra la app mientras espera una plaza">
@@ -151,6 +159,11 @@
       const exe = (release.assets || []).find((asset) => asset.name === 'RenfeEnjoyer.exe');
       // A release without the executable (the old Tkinter one) is not what the button gets.
       if (!exe) return;
+      // Releases before 2.0.5 carry no Linux build.
+      if (!release.assets.some((asset) => asset.name === 'RenfeEnjoyer-linux')) {
+        document.getElementById('download-linux').hidden = true;
+        document.getElementById('linux-meta').hidden = true;
+      }
       const size = ` · ${Math.round(exe.size / 1e6)} MB`;
       document.getElementById('release-meta').textContent =
         `v${release.tag_name.replace(/^v/, '')}${size} · Windows 10 u 11 · requiere Chrome`;

@@ -224,6 +224,9 @@ class Updater:
                             self._progress = min(received / max(offer.size, 1), 1.0)
             if received != offer.size or digest.hexdigest() != offer.sha256:
                 raise ValueError("el archivo descargado no coincide con el publicado")
+            # On Linux a fresh file is not executable: the new build would never start.
+            assert self.executable is not None
+            part.chmod(self.executable.stat().st_mode & 0o777)
             os.replace(part, self._path(".new"))
             self._path(".new.json").write_text(
                 json.dumps({"version": offer.version, "sha256": offer.sha256})

@@ -161,3 +161,77 @@ def test_release_admin_needs_a_session(client: TestClient) -> None:
     )
     put = client.put("/api/v1/admin/min-version", json={"min_version": None})
     assert put.status_code == 401
+
+
+def with_linux(tag: str, digest: str = "sha256:" + "11" * 32) -> dict:
+    release = gh_release(tag)
+    release["assets"].append(
+        {
+            "name": "RenfeEnjoyer-linux",
+            "size": 46_000_000,
+            "digest": digest,
+            "browser_download_url": f"https://github.com/o/r/releases/download/{tag}/RenfeEnjoyer-linux",
+        }
+    )
+    return release
+
+
+def check_from(client: TestClient, platform: str) -> dict:
+    body = {"machine_id": MACHINE, "platform": platform}
+    response = client.post("/api/v1/check", json=body)
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def test_each_platform_is_offered_its_own_build(admin: TestClient, github: list) -> None:
+    github.append(with_linux("v2.0.5"))
+    ask(admin)
+    publish(admin, "2.0.5")
+    windows, linux = (
+        update_claims(check(admin)),
+        update_claims(check_from(admin, "linux")),
+    )
+    assert windows["url"].endswith("/v2.0.5/RenfeEnjoyer.exe")
+    assert windows["sha256"] == "ab" * 32
+    assert linux["url"].endswith("/v2.0.5/RenfeEnjoyer-linux")
+    assert (linux["sha256"], linux["size"]) == ("11" * 32, 46_000_000)
+
+
+def test_linux_gets_the_newest_release_that_has_a_linux_build(
+    admin: TestClient, github: list
+) -> None:
+    github.append(with_linux("v2.0.5"))
+    github.append(gh_release("v2.0.6"))  # Windows only
+    publish(admin, "2.0.5")
+    publish(admin, "2.0.6")
+    assert update_claims(check(admin))["version"] == "2.0.6"
+    assert update_claims(check_from(admin, "linux"))["version"] == "2.0.5"
+
+
+def test_platforms_without_a_build_get_no_update(admin: TestClient, github: list) -> None:
+    publish(admin, "2.0.3")
+    assert check_from(admin, "linux")["update"] is None
+    assert check_from(admin, "macos")["update"] is None
+
+
+def test_the_admin_lists_every_build(admin: TestClient, github: list) -> None:
+    github.append(with_linux("v2.0.5"))
+    listed = admin.get("/api/v1/admin/releases").json()["github"]
+    assert set(listed[0]["assets"]) == {"windows", "linux"}
+    publish(admin, "2.0.5")
+    published = admin.get("/api/v1/admin/releases").json()["published"][0]
+    assert published["linux_sha256"] == "11" * 32
+
+
+def test_a_release_without_the_windows_build_cannot_be_published(
+    admin: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    release = with_linux("v2.0.5")
+    release["assets"] = release["assets"][1:]
+    monkeypatch.setattr(releases, "_github", lambda path: [release])
+    assert [
+        r["version"] for r in admin.get("/api/v1/admin/releases").json()["github"]
+    ] == ["2.0.5"]
+    assert (
+        admin.post("/api/v1/admin/releases", json={"version": "2.0.5"}).status_code == 404
+    )

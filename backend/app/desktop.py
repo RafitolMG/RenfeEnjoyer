@@ -58,10 +58,8 @@ def _announce_when_ready(server: uvicorn.Server, browse: bool) -> None:
         time.sleep(0.1)
     print(f"Renfe Enjoyer {APP_VERSION} en marcha: {URL}", flush=True)
     print(f"Perfiles guardados en {DATABASE_PATH}", flush=True)
-    print(
-        "Solo se puede abrir desde este equipo. Cierra esta ventana para pararlo.",
-        flush=True,
-    )
+    stop = "Cierra esta ventana" if sys.platform == "win32" else "Pulsa Ctrl+C"
+    print(f"Solo se puede abrir desde este equipo. {stop} para pararlo.", flush=True)
     if browse:
         open_browser()
 

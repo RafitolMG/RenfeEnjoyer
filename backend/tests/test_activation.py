@@ -298,6 +298,7 @@ def test_checks_and_requests_describe_the_computer(
     activator.refresh(force=True)
     activator.request_access("Ana", "ana@example.com")
     for _, body in server.calls:
+        assert body["platform"] in {"windows", "linux"}
         device = body["device"]
         assert device["hostname"] and device["os"] and device["timezone"]
         assert all(len(value) <= activation.DETAIL_LIMIT for value in device.values())

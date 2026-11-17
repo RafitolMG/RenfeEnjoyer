@@ -399,8 +399,15 @@
       list.append(el('p', { className: 'empty' }, 'Ninguna.'));
       return;
     }
+    const PLATFORMS = { windows: 'Windows', linux: 'Linux' };
+    // GitHub's entries list builds by platform; published ones store them flat.
+    const builds = (r) => r.assets
+      ? Object.fromEntries(Object.entries(r.assets))
+      : { windows: { sha256: r.sha256, size: r.size },
+          ...(r.linux_sha256 ? { linux: { sha256: r.linux_sha256, size: r.linux_size } } : {}) };
     for (const r of [...rows.values()].sort(byVersion)) {
       const pub = published.get(r.version);
+      const pinned = builds(pub ?? r);
       const installs = machines.filter((m) => m.app_version === r.version).length;
       const card = el('article', { className: 'card' });
       const info = el('div');
@@ -408,8 +415,9 @@
         el('div', { className: 'who' }, `v${r.version}`),
         el('div', { className: 'meta' },
           (pub ? `Publicada ${when(pub.published_at)}` : 'Sin publicar') +
-          ` · ${(r.size / 1e6).toFixed(1)} MB · ${installs} ${installs === 1 ? 'equipo' : 'equipos'}`),
-        el('div', { className: 'meta code' }, `SHA-256 ${(pub ?? r).sha256.slice(0, 16)}…`),
+          ` · ${installs} ${installs === 1 ? 'equipo' : 'equipos'}`),
+        ...Object.entries(pinned).map(([platform, build]) => el('div', { className: 'meta code' },
+          `${PLATFORMS[platform] ?? platform} · ${(build.size / 1e6).toFixed(1)} MB · SHA-256 ${build.sha256.slice(0, 16)}…`)),
       );
       const actions = el('div', { className: 'actions' });
       actions.append(pub

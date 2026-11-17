@@ -74,10 +74,15 @@ class PublishedRelease(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     version: str = Field(index=True, unique=True)
     url: str
-    # Pinned when publishing: a file replaced on GitHub afterwards is refused by the app.
+    # The Windows build. Pinned when publishing: a file replaced on GitHub afterwards is
+    # refused by the app.
     sha256: str
     size: int
     published_at: datetime = Field(default_factory=utcnow)
+    # The Linux build, from 2.0.5 on; empty for releases that had none.
+    linux_url: str | None = None
+    linux_sha256: str | None = None
+    linux_size: int | None = None
 
 
 class UpdatePolicy(SQLModel, table=True):

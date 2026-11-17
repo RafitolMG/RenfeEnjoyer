@@ -10,7 +10,12 @@ FROZEN = getattr(sys, "frozen", False)
 
 if FROZEN:
     _BUNDLE_DIR = Path(getattr(sys, "_MEIPASS", BASE_DIR))
-    DATA_DIR = Path(os.getenv("LOCALAPPDATA") or Path.home()) / "RenfeEnjoyer"
+    if sys.platform == "win32":
+        _DATA_HOME = Path(os.getenv("LOCALAPPDATA") or Path.home())
+    else:
+        # The XDG location every Linux desktop expects: ~/.local/share by default.
+        _DATA_HOME = Path(os.getenv("XDG_DATA_HOME") or Path.home() / ".local" / "share")
+    DATA_DIR = _DATA_HOME / "RenfeEnjoyer"
     FRONTEND_DIST = _BUNDLE_DIR / "frontend" / "dist"
 else:
     DATA_DIR = BASE_DIR

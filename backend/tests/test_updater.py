@@ -85,6 +85,15 @@ def test_versions_compare_as_numbers() -> None:
     assert not is_newer("garbage", "2.0.0")
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX permissions")
+def test_the_download_can_be_executed_like_the_running_build(
+    exe: Path, download_server: str
+) -> None:
+    exe.chmod(0o755)
+    ready_updater(exe, download_server)
+    assert exe.with_name("RenfeEnjoyer.exe.new").stat().st_mode & 0o777 == 0o755
+
+
 def test_a_newer_version_is_downloaded_and_checked(
     exe: Path, download_server: str
 ) -> None:

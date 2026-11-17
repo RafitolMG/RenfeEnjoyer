@@ -89,6 +89,9 @@ def machine_id() -> str:
 
 DETAIL_LIMIT = 120
 
+# Which build the server should offer as an update; older apps send none: Windows.
+PLATFORM = "windows" if sys.platform == "win32" else "linux"
+
 
 def device_info() -> dict[str, str]:
     """What the admin sees about this computer, besides its id: who is asking.
@@ -274,7 +277,11 @@ class Activator:
             if force or stale:
                 self._exchange(
                     "/api/v1/check",
-                    {"app_version": APP_VERSION, "device": device_info()},
+                    {
+                        "app_version": APP_VERSION,
+                        "platform": PLATFORM,
+                        "device": device_info(),
+                    },
                 )
 
     def request_access(self, name: str, contact: str) -> None:
@@ -285,6 +292,7 @@ class Activator:
                     "name": name,
                     "contact": contact,
                     "app_version": APP_VERSION,
+                    "platform": PLATFORM,
                     "device": device_info(),
                 },
             )

@@ -9,6 +9,7 @@ while a revocation still takes effect within that window.
 import mimetypes
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from dataclasses import asdict
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Any
@@ -100,6 +101,8 @@ class Device(BaseModel):
 class CheckIn(BaseModel):
     machine_id: MachineId
     app_version: str | None = Field(default=None, max_length=40)
+    # Picks the build offered as an update. Apps before 2.0.5 send none: they are Windows.
+    platform: str = Field(default="windows", max_length=20)
     device: Device | None = None
 
 
@@ -109,7 +112,7 @@ class AccessRequest(CheckIn):
 
 
 def _answer(
-    request: Request, session: Session, machine: Machine | None
+    request: Request, session: Session, machine: Machine | None, platform: str
 ) -> dict[str, Any]:
     key = request.app.state.signing_key
     status_ = machine.status if machine else None
@@ -122,7 +125,7 @@ def _answer(
         # Not for revoked computers; the rest may need a fix to get as far as asking.
         "update": None
         if status_ == MachineStatus.REVOKED
-        else releases.signed_update(session, key),
+        else releases.signed_update(session, key, platform),
     }
 
 
@@ -181,7 +184,7 @@ def check(payload: CheckIn, request: Request, session: SessionDep) -> dict[str, 
     machine = _find(session, payload.machine_id)
     if machine is not None:
         _touch(session, machine, payload, _client_ip(request))
-    return _answer(request, session, machine)
+    return _answer(request, session, machine, payload.platform)
 
 
 @app.post("/api/v1/requests")
@@ -211,7 +214,7 @@ def request_access(
         machine.name, machine.contact = payload.name, payload.contact
     # An approved or revoked computer keeps its decision: asking again changes nothing.
     _touch(session, machine, payload, _client_ip(request))
-    return _answer(request, session, machine)
+    return _answer(request, session, machine, payload.platform)
 
 
 @app.get("/health")
@@ -308,7 +311,7 @@ def _github_or_502() -> list[releases.GitHubRelease]:
 def list_releases(_: AdminDep, session: SessionDep) -> dict[str, Any]:
     """GitHub's releases next to the ones published here. GitHub may be unreachable."""
     try:
-        on_github: list[dict[str, Any]] = [vars(r) for r in releases.fetch_releases()]
+        on_github: list[dict[str, Any]] = [asdict(r) for r in releases.fetch_releases()]
         github_error = None
     except releases.GitHubError as exc:
         on_github, github_error = [], str(exc)
@@ -328,19 +331,28 @@ class Publish(BaseModel):
 def publish_release(
     payload: Publish, _: AdminDep, session: SessionDep
 ) -> PublishedRelease:
-    """Offer a GitHub release to the apps, pinning its executable's current SHA-256."""
+    """Offer a GitHub release to the apps, pinning each build's current SHA-256."""
     if session.exec(
         select(PublishedRelease).where(PublishedRelease.version == payload.version)
     ).first():
         raise HTTPException(status.HTTP_409_CONFLICT, "Esa versión ya está publicada")
     found = next((r for r in _github_or_502() if r.version == payload.version), None)
-    if found is None:
+    windows = found.assets.get("windows") if found else None
+    if found is None or windows is None:
         raise HTTPException(
             status.HTTP_404_NOT_FOUND,
-            f"GitHub no tiene la versión {payload.version} con {config.RELEASE_ASSET}",
+            f"GitHub no tiene la versión {payload.version} con "
+            f"{config.RELEASE_ASSETS['windows']}",
         )
+    linux = found.assets.get("linux")
     release = PublishedRelease(
-        version=found.version, url=found.url, sha256=found.sha256, size=found.size
+        version=found.version,
+        url=windows.url,
+        sha256=windows.sha256,
+        size=windows.size,
+        linux_url=linux.url if linux else None,
+        linux_sha256=linux.sha256 if linux else None,
+        linux_size=linux.size if linux else None,
     )
     session.add(release)
     session.commit()

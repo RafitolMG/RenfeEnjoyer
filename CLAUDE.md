@@ -49,9 +49,14 @@ once `/api/health` answers, and only opens the browser if the app is already up.
 data directory to `%LOCALAPPDATA%\RenfeEnjoyer`, because the bundle unpacks to a temp dir deleted on exit, and
 the SPA to the bundle's copy. PyInstaller cannot cross-compile, so the `.exe` is built by the `windows` CI job,
 which also runs the backend tests on Windows, starts the executable and checks it serves the app, then uploads
-it as the `RenfeEnjoyer-windows` artifact. A pushed `v*` tag also publishes it as a GitHub release
-(`gh release create … --latest`); the activation server's landing page (`activation/app/index.html`, served at
-`/`) links to `releases/latest/download/RenfeEnjoyer.exe`, so the asset name must not change. On Linux the same spec builds a Linux binary, useful to test the bundle.
+it as the `RenfeEnjoyer-windows` artifact. **Linux ships the same way since 2.0.5**: the `linux` job builds the
+spec on `ubuntu-22.04` (PyInstaller bundles everything but glibc, so building on a newer runner would refuse to
+start on older distributions), smoke-tests it and uploads `RenfeEnjoyer-linux`. Frozen on Linux, `DATA_DIR` is
+`$XDG_DATA_HOME/RenfeEnjoyer` (`~/.local/share`), and the binary is run from a terminal, whose Ctrl+C stops it.
+A pushed `v*` tag runs the `release` job once both builds pass: it checks the tag against `APP_VERSION` and
+publishes both files as one GitHub release (`gh release create … --latest`). The landing page
+(`activation/app/index.html`) links to `releases/latest/download/<asset>` and the activation server finds builds
+by name (`RELEASE_ASSETS`), so the asset names must not change.
 pyinstaller-hooks-contrib covers uvicorn's and websockets' dynamic imports and Selenium's data files, but not
 Selenium's driver classes: since 4.52 `webdriver.Chrome` resolves through `importlib` in a module `__getattr__`,
 so the spec lists `selenium.webdriver.chrome` as hidden imports. Without them the Windows build died on launch
@@ -86,8 +91,10 @@ credits DB-IP. The deployed SQLite predates these columns and `create_all` never
 **The executable updates itself, but only to versions the admin publishes.** CI turns a `v*` tag into a
 GitHub release (and fails if the tag is not `v` + `APP_VERSION`); nothing reaches the apps until the admin's
 "Versiones" tab publishes it (`activation/app/releases.py`). Publishing pins the SHA-256 GitHub reports for the
-asset (`digest`) and every `/api/v1/check` answer carries the newest published version signed with the license
-key, with `"kind": "update"` so neither can pass for the other; revoked computers get none. The admin can set a
+asset (`digest`) of each platform's build, and every `/api/v1/check` answer carries the newest published version
+that has a build for the caller's `platform` (apps before 2.0.5 send none and count as Windows), signed with the
+license key, with `"kind": "update"` so neither can pass for the other; revoked computers get none. A download
+takes the running executable's permission bits, or on Linux the new build would not be executable. The admin can set a
 published version as minimum, below which `POST /api/jobs/current` returns 403. On the desktop side
 `app/updater.py` downloads to `<exe>.new`, checks hash and size, records `<exe>.new.json` (so a finished download
 survives a restart), and the SPA's `UpdateBanner` offers "Actualizar" while no search runs. The handover lives in

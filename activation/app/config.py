@@ -25,6 +25,7 @@ GEOIP_ENABLED = os.getenv("GEOIP_ENABLED", "1").lower() not in {"0", "false", "n
 
 # Where CI publishes the Windows executable, and the asset's name in each release.
 GITHUB_REPO = os.getenv("GITHUB_REPO", "RafitolMG/RenfeEnjoyer")
-RELEASE_ASSET = "RenfeEnjoyer.exe"
+# Each platform's build in a release. Windows is required to publish; the rest optional.
+RELEASE_ASSETS = {"windows": "RenfeEnjoyer.exe", "linux": "RenfeEnjoyer-linux"}
 # Optional: only raises GitHub's rate limit (60 requests an hour without it).
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
