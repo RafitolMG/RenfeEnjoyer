@@ -41,6 +41,13 @@ def start_job(
     user = session.get(User, payload.user_id)
     if user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Perfil no encontrado")
+    if not user.password:
+        # Saved under a key this computer no longer has (see app/credentials.py).
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "No se puede leer la contraseña guardada de este perfil: vuelve a "
+            "escribirla en Gestionar.",
+        )
     if parse_renfe_date(payload.date) < date.today():
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT, "Esa fecha ya ha pasado"

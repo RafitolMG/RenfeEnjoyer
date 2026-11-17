@@ -1,10 +1,13 @@
 from sqlmodel import Field, SQLModel
 
+from app.credentials import EncryptedString
+
 
 class UserBase(SQLModel):
     username: str = Field(index=True, unique=True)
     email: str
-    password: str
+    # The bot types it into Renfe's login, so it is encrypted rather than hashed.
+    password: str = Field(sa_type=EncryptedString)
     abono: str
 
 

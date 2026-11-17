@@ -3,6 +3,7 @@ from collections.abc import Iterator
 from sqlmodel import Session, SQLModel, create_engine
 
 from app.config import DATABASE_PATH, DATABASE_URL
+from app.credentials import encrypt_plaintext
 
 # check_same_thread=False: the Selenium worker runs off the request thread.
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
@@ -14,6 +15,8 @@ def init_db() -> None:
     # (%LOCALAPPDATA%\RenfeEnjoyer) does not exist yet.
     DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
     SQLModel.metadata.create_all(engine)
+    with engine.begin() as connection:
+        encrypt_plaintext(connection)
 
 
 def get_session() -> Iterator[Session]:

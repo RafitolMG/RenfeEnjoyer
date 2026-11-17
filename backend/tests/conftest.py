@@ -12,6 +12,7 @@ import pytest
 _TEST_ROOT = Path(tempfile.gettempdir()) / "renfe_enjoyer_test"
 os.environ["RENFE_DB_PATH"] = str(_TEST_ROOT / "test.db")
 os.environ["RENFE_PROFILE_DIR"] = str(_TEST_ROOT / "browser-profile")
+os.environ["RENFE_KEY_PATH"] = str(_TEST_ROOT / "credentials.key")
 _TEST_ROOT.mkdir(parents=True, exist_ok=True)
 
 from fastapi.testclient import TestClient  # noqa: E402

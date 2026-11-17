@@ -188,9 +188,14 @@ Key invariants:
   against `(username, password, email, abono)`, so `password` holds the email and vice versa.
   `scripts/migrate_legacy_db.py` un-swaps them on import. The current schema is correct — do not replicate
   the swap.
-- **Credentials are stored in plaintext** in the local SQLite file. `UserRead` deliberately omits the
-  password so it never reaches the client, and a blank password in `PATCH /api/users/{id}` means "keep the
-  stored one". Encryption at rest is still an open task.
+- **Renfe passwords are encrypted, not hashed**: the bot has to type them into Renfe's login. The
+  `password` column is an `EncryptedString` (`app/credentials.py`, Fernet), so the ORM reads plain text and
+  the file holds `enc:v1:…`. The key lives in `credentials.key` next to the database, never in it: sealed
+  with DPAPI on Windows (bound to that Windows account), a 0600 file elsewhere. `init_db` encrypts any
+  plaintext row left from before. A value the key cannot open reads as `""`, so listing still works and
+  only starting a search on that profile asks for the password again (409). `UserRead` deliberately omits
+  the password so it never reaches the client, and a blank password in `PATCH /api/users/{id}` means "keep
+  the stored one". Tests point `RENFE_KEY_PATH` at a temp file in `conftest.py`.
 - **Deleting a profile, or changing its email, removes that account's browser profile** (and with it the
   Renfe session), unless another profile uses the same account: one account can hold several passes. Both
   return 409 while a search runs, since Chrome holds the directory open.

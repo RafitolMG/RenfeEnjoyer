@@ -13,6 +13,8 @@ dist/
 
 # Local SQLite databases (hold Renfe credentials, never commit)
 *.db
+# Key that encrypts the passwords in that database (backend/credentials.key)
+credentials.key
 
 # Activation license a checkout writes when RENFE_ACTIVATION=1 (backend/license.json)
 license.json

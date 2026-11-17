@@ -21,6 +21,10 @@ else:
 DATABASE_PATH = Path(os.getenv("RENFE_DB_PATH", DATA_DIR / "renfe_enjoyer.db"))
 DATABASE_URL = f"sqlite:///{DATABASE_PATH}"
 
+# Encrypts the Renfe passwords in the database (app/credentials.py). Kept out of the
+# database file so a copy of it alone reveals nothing.
+KEY_PATH = Path(os.getenv("RENFE_KEY_PATH", DATA_DIR / "credentials.key"))
+
 # Vite dev server; in production the SPA is served from the same origin.
 CORS_ORIGINS = os.getenv("RENFE_CORS_ORIGINS", "http://localhost:5173").split(",")
 
