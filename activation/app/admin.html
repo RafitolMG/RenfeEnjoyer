@@ -70,6 +70,10 @@
              font-size: 12.5px; color: var(--muted); background: var(--bg); border: 1px solid var(--border);
              border-radius: 5px; max-height: 260px; overflow-y: auto; }
   .history li { padding: 2px 0; overflow-wrap: anywhere; }
+  .alert { margin: 0 0 16px; padding: 10px 14px; border-radius: 8px; font-size: 14px; color: var(--danger);
+           border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
+           background: color-mix(in srgb, var(--danger) 8%, transparent); }
+  #confirm-text { margin: 0 0 18px; }
   .attribution { margin-top: 32px; font-size: 12px; color: var(--muted); }
   .attribution a { color: inherit; }
 </style>
@@ -89,6 +93,7 @@
     Sigues con la contraseña inicial.
     <button type="button" data-open-password>Cámbiala</button>
   </p>
+  <p id="alert" class="alert" role="alert" hidden></p>
   <div class="tabs" role="tablist">
     <button role="tab" data-view="machines" aria-selected="true">Equipos</button>
     <button role="tab" data-view="versions" aria-selected="false">Versiones</button>
@@ -111,6 +116,18 @@
   </section>
   <p class="attribution">Ubicación aproximada por <a href="https://db-ip.com">DB-IP</a></p>
 </main>
+
+<!-- In-page, not window.confirm(): a browser that suppresses a page's dialogs answers
+     "no" without showing anything, and nothing gets sent. -->
+<dialog id="confirm-dialog" aria-labelledby="confirm-text">
+  <form method="dialog">
+    <p id="confirm-text"></p>
+    <div class="dialog-actions">
+      <button class="ghost" value="cancel">Cancelar</button>
+      <button id="confirm-ok" class="primary" value="ok">Aceptar</button>
+    </div>
+  </form>
+</dialog>
 
 <dialog id="password-dialog" aria-labelledby="password-title">
   <form id="password-form" method="dialog" novalidate>
@@ -188,7 +205,7 @@
         actions.append(button('revoke', 'Revocar', () => act(m.id, 'revoke')));
       }
       actions.append(button('', 'Borrar', () => {
-        if (confirm(`¿Borrar a ${m.name}?`)) remove(m.id);
+        ask(`¿Borrar a ${m.name}?`, 'Borrar').then((ok) => ok && remove(m.id));
       }));
       const history = el('ul', { className: 'history', hidden: !openHistories.has(m.id) });
       actions.append(button('', 'Historial', () => toggleHistory(m.id, history)));
@@ -215,6 +232,21 @@
     } catch (error) {
       node.replaceChildren(el('li', { className: 'error' }, error.message));
     }
+  }
+  const confirmDialog = document.getElementById('confirm-dialog');
+  function ask(text, okLabel = 'Aceptar') {
+    document.getElementById('confirm-text').textContent = text;
+    document.getElementById('confirm-ok').textContent = okLabel;
+    confirmDialog.returnValue = '';
+    confirmDialog.showModal();
+    return new Promise((resolve) => {
+      confirmDialog.addEventListener('close', () => resolve(confirmDialog.returnValue === 'ok'), { once: true });
+    });
+  }
+  const alertBox = document.getElementById('alert');
+  function showError(message) {
+    alertBox.textContent = message;
+    alertBox.hidden = !message;
   }
   function button(className, label, onClick) {
     const b = el('button', { className, type: 'button' }, label);
@@ -309,12 +341,14 @@
   }
 
   async function act(id, action) {
-    try { await call(`/api/v1/admin/machines/${id}/${action}`, 'POST'); } catch (e) { alert(e.message); }
+    showError('');
+    try { await call(`/api/v1/admin/machines/${id}/${action}`, 'POST'); } catch (e) { showError(e.message); }
     load();
   }
 
   async function remove(id) {
-    try { await call(`/api/v1/admin/machines/${id}`, 'DELETE'); } catch (e) { alert(e.message); }
+    showError('');
+    try { await call(`/api/v1/admin/machines/${id}`, 'DELETE'); } catch (e) { showError(e.message); }
     load();
   }
 
@@ -357,10 +391,12 @@
       const actions = el('div', { className: 'actions' });
       actions.append(pub
         ? button('revoke', 'Retirar', () => {
-            if (confirm(`¿Dejar de ofrecer la v${r.version}?`)) releaseCall(`/api/v1/admin/releases/${r.version}`, 'DELETE');
+            ask(`¿Dejar de ofrecer la v${r.version}?`, 'Retirar')
+              .then((ok) => ok && releaseCall(`/api/v1/admin/releases/${r.version}`, 'DELETE'));
           })
         : button('approve', 'Publicar', () => {
-            if (confirm(`¿Ofrecer la v${r.version} a todos los equipos?`)) releaseCall('/api/v1/admin/releases', 'POST', { version: r.version });
+            ask(`¿Ofrecer la v${r.version} a todos los equipos?`, 'Publicar')
+              .then((ok) => ok && releaseCall('/api/v1/admin/releases', 'POST', { version: r.version }));
           }));
       card.append(info, el('span', { className: `tag badge ${pub ? 'published' : 'unpublished'}` },
         pub ? 'Publicada' : 'Sin publicar'), actions);
@@ -377,13 +413,14 @@
     }
   }
   async function releaseCall(path, method, body) {
-    try { await call(path, method, body); } catch (e) { alert(e.message); }
+    showError('');
+    try { await call(path, method, body); } catch (e) { showError(e.message); }
     loadVersions();
   }
-  document.getElementById('min-version').addEventListener('change', (event) => {
+  document.getElementById('min-version').addEventListener('change', async (event) => {
     const value = event.target.value || null;
     const text = value ? `¿Obligar a actualizar a la v${value} o superior?` : '¿Quitar la versión mínima?';
-    if (!confirm(text)) { event.target.value = releases.min_version ?? ''; return; }
+    if (!(await ask(text))) { event.target.value = releases.min_version ?? ''; return; }
     releaseCall('/api/v1/admin/min-version', 'PUT', { min_version: value });
   });
   for (const tab of document.querySelectorAll('[data-view]')) {
