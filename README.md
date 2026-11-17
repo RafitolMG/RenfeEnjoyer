@@ -353,6 +353,25 @@ cd frontend   && npm run typecheck && npm run build
 cd activation && .venv/bin/pytest -q && .venv/bin/ruff check . && .venv/bin/mypy   # su propio venv
 ```
 
+### Pruebas end-to-end
+
+`e2e/` prueba cada funcionalidad como la usa una persona, con un navegador real (Playwright): la app
+desde el código con un bot simulado en lugar de Renfe (nunca toca Renfe), el servidor de
+activación real con claves de prueba y un GitHub falso para las releases. Cubre perfiles,
+búsquedas completas, activación, el admin, la landing y las actualizaciones con su relevo y su
+vuelta atrás.
+
+```bash
+.venv/bin/pip install -e './backend[e2e]' && .venv/bin/python -m playwright install chromium
+.venv/bin/pytest e2e                      # E2E_CHROMIUM=/usr/bin/chromium usa el del sistema
+```
+
+`e2e/test_binary.py` prueba además un ejecutable compilado (`E2E_BINARY=dist/RenfeEnjoyer-linux`):
+que abre el navegador sin heredar las librerías del paquete, que conecta por HTTPS
+(`E2E_NETWORK=1`), `--check-browser`, una carpeta sin permiso de escritura y, con
+`E2E_BINARY_OLD`, el relevo real desde una versión anterior. El CI ejecuta las dos partes y no
+publica una release si falla cualquiera.
+
 ## Contraseñas
 
 Las contraseñas de Renfe de los perfiles se guardan **cifradas** en el SQLite: el bot necesita

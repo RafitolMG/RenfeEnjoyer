@@ -58,7 +58,7 @@ class GitHubRelease:
 
 def _github(path: str) -> Any:
     request = urllib.request.Request(
-        f"https://api.github.com/repos/{config.GITHUB_REPO}{path}",
+        f"{config.GITHUB_API}/repos/{config.GITHUB_REPO}{path}",
         headers={
             "Accept": "application/vnd.github+json",
             "User-Agent": "renfe-enjoyer-activation",

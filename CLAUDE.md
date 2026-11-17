@@ -124,7 +124,18 @@ it never does within `HANDOVER_TIMEOUT`, the old one undoes the swap and serves 
 cd backend  && ../.venv/bin/pytest -q            # single test: pytest tests/test_jobs_api.py::test_name
 cd backend  && ../.venv/bin/ruff check . && ../.venv/bin/ruff format --check . && ../.venv/bin/mypy
 cd frontend && npm run typecheck && npm run build
+.venv/bin/pytest e2e                              # end-to-end, from the repo root (E2E_CHROMIUM=/usr/bin/chromium)
 ```
+
+**`e2e/` is the end-to-end suite and the release gate** (the `release` job needs it). It drives a real browser
+against real processes: the app from source through `e2e/harness/app_server.py` (the real app and its own
+`desktop` serve/handover loop; only the Renfe bot, the activation key/URL and the "executable" are stand-ins:
+the bot's scenario is the profile's `abono`, and a downloaded build is a file whose first line `E2E:<version>`
+says which version the next process starts as), the real activation server from `activation/` with test keys,
+and `FakeGitHub` serving releases through `GITHUB_API`. `test_binary.py` runs against a built executable
+(`E2E_BINARY`, `E2E_BINARY_OLD`, `E2E_NETWORK=1`): it is what would have caught the Linux bundle's library,
+certificate and read-only-folder failures. Add a test there for any packaging fix, and one in the source suite
+for any feature; a fix without one is a patch.
 
 CI (`.github/workflows/ci.yml`) runs exactly these on push and PR, plus the Windows job above and an
 `activation` job (ruff, mypy, pytest in `activation/`, then builds the image and checks it starts).

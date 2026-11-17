@@ -67,6 +67,39 @@ jobs:
 
   # Runs the backend tests on Windows and builds the desktop executable there, since
   # PyInstaller cannot cross-compile. The .exe is attached to each run as an artifact.
+  e2e:
+    # Every feature as a user meets it: the app from source with a scripted bot in place
+    # of Renfe, the real activation server with test keys, a stand-in for GitHub's
+    # releases, and a real browser driven by Playwright. See e2e/conftest.py.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: pip install -e './backend[dev,e2e]'
+      - name: Activation server in its own environment
+        run: |
+          python -m venv activation/.venv
+          activation/.venv/bin/pip install -e ./activation
+      - name: Build the frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+      - run: python -m playwright install --with-deps chromium
+      - run: ruff check --config backend/pyproject.toml e2e
+      - name: End-to-end tests
+        run: pytest e2e -v
+      - name: Server logs
+        if: failure()
+        run: find /tmp -name '*.log' -path '*pytest*' -exec sh -c 'echo "== $1"; tail -40 "$1"' _ {} \;
+
   windows:
     runs-on: windows-latest
     steps:
@@ -208,7 +241,7 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - run: pip install -e './backend[build]'
+      - run: pip install -e './backend[build,e2e]'
       - name: Build the frontend
         working-directory: frontend
         run: |
@@ -217,49 +250,23 @@ jobs:
       - run: |
           pyinstaller --noconfirm packaging/renfe-enjoyer.spec
           mv dist/RenfeEnjoyer dist/RenfeEnjoyer-linux
-      - name: Start the binary and check it serves the app
-        env:
-          XDG_DATA_HOME: ${{ runner.temp }}/data
-          RENFE_NO_BROWSER: '1'
-          RENFE_PORT: '8765'
-          RENFE_ACTIVATION_URL: http://127.0.0.1:9
+      # An older build to update from, as the Windows job does.
+      - name: Build an older binary to update from
         run: |
-          dist/RenfeEnjoyer-linux > app.log 2>&1 &
-          pid=$!
-          trap 'kill $pid 2>/dev/null || true' EXIT
-          for i in $(seq 120); do
-            curl -sf http://127.0.0.1:8765/api/health && break
-            kill -0 $pid 2>/dev/null || { cat app.log; echo 'El binario se cerró al arrancar'; exit 1; }
-            sleep 0.5
-          done
-          curl -sf http://127.0.0.1:8765/ | grep -q '<title>Renfe Enjoyer</title>'
-          curl -sf http://127.0.0.1:8765/api/activation |
-            python3 -c "import json, sys; a = json.load(sys.stdin); assert a['required'] and not a['authorized'], a"
-          test -f "$XDG_DATA_HOME/RenfeEnjoyer/renfe_enjoyer.db" ||
-            { echo 'No creó la base de datos en $XDG_DATA_HOME/RenfeEnjoyer'; exit 1; }
-      # PyInstaller points LD_LIBRARY_PATH at the bundle; programs the app starts must not
-      # inherit it, or a newer distribution's /bin/sh breaks on the bundle's libraries
-      # (the first 2.0.5 build could not open the browser on Arch). This runner has the same libraries as
-      # the bundle, so check the variable itself; the containers below check the effect.
-      - name: Programs it starts get the system's libraries
+          sed -i 's/^APP_VERSION = .*/APP_VERSION = "0.0.1"/' backend/app/config.py
+          pyinstaller --noconfirm --distpath dist-old --workpath build-old packaging/renfe-enjoyer.spec
+          git checkout -- backend/app/config.py
+      # What only the bundle can get wrong: the libraries and certificates it packs (the
+      # first 2.0.5 build could not open the browser nor reach the activation server on
+      # Arch), its data folder, a read-only install, and a real update handover.
+      - name: End-to-end tests of the binary
         env:
-          XDG_DATA_HOME: ${{ runner.temp }}/data-env
-          RENFE_PORT: '8766'
-          RENFE_ACTIVATION_URL: http://127.0.0.1:9
+          E2E_BINARY: dist/RenfeEnjoyer-linux
+          E2E_BINARY_OLD: dist-old/RenfeEnjoyer
+          E2E_NETWORK: '1'
         run: |
-          printf '#!/bin/sh\nenv > "%s/browser-env"\n' "$RUNNER_TEMP" > "$RUNNER_TEMP/browser"
-          chmod +x "$RUNNER_TEMP/browser"
-          BROWSER="$RUNNER_TEMP/browser" dist/RenfeEnjoyer-linux > app.log 2>&1 &
-          pid=$!
-          trap 'kill $pid 2>/dev/null || true' EXIT
-          for i in $(seq 120); do [ -f "$RUNNER_TEMP/browser-env" ] && break; sleep 0.5; done
-          test -f "$RUNNER_TEMP/browser-env" || { cat app.log; echo 'No abrió el navegador'; exit 1; }
-          if grep -q '^LD_LIBRARY_PATH=.*_MEI' "$RUNNER_TEMP/browser-env"; then
-            echo 'El navegador hereda las librerías del paquete'
-            exit 1
-          fi
-      - name: The bot's browser starts
-        run: dist/RenfeEnjoyer-linux --check-browser
+          python -m playwright install --with-deps chromium
+          pytest e2e/test_binary.py -v
       - name: Runs on other distributions, from a read-only folder
         run: |
           for image in archlinux:latest fedora:latest debian:12 ubuntu:24.04; do
@@ -280,7 +287,7 @@ jobs:
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [windows, linux]
+    needs: [windows, linux, e2e]
     runs-on: ubuntu-latest
     permissions:
       contents: write
