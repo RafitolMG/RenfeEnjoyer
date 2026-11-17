@@ -122,7 +122,10 @@ def test_only_the_owner_can_read_the_key(fresh_key: Path) -> None:
 def test_the_key_is_sealed_with_dpapi_on_windows(fresh_key: Path) -> None:
     stored = credentials.encrypt("secreto")
     sealed = fresh_key.read_bytes()
-    with pytest.raises(ValueError):
-        Fernet(sealed)
+    key = credentials._unseal(sealed)
+    # Not Fernet(sealed) raising: base64 decoding skips foreign bytes, so now and then a
+    # random blob decodes to 32 bytes by chance.
+    Fernet(key)
+    assert key not in sealed
     credentials.reset_cipher()
     assert credentials.decrypt(stored) == "secreto"
