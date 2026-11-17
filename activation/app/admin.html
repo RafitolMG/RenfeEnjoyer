@@ -71,6 +71,7 @@
   .policy select { font: inherit; padding: 6px 10px; color: inherit; background: var(--surface);
                    border: 1px solid var(--border-strong); border-radius: 5px; }
   .published { color: var(--ok); } .unpublished { color: var(--muted); }
+  .meta.stale { color: var(--danger); }
   .history { grid-column: 1 / -1; margin: 0; padding: 10px 12px; list-style: none; font-family: var(--mono);
              font-size: 12.5px; color: var(--muted); background: var(--bg); border: 1px solid var(--border);
              border-radius: 5px; max-height: 260px; overflow-y: auto; }
@@ -429,6 +430,15 @@
             ask(`¿Ofrecer la v${r.version} a todos los equipos?`, 'Publicar')
               .then((ok) => ok && releaseCall('/api/v1/admin/releases', 'POST', { version: r.version }));
           }));
+      if (pub?.stale) {
+        // The release was rebuilt: apps would download files that no longer match.
+        info.append(el('div', { className: 'meta stale' },
+          'Los archivos de GitHub han cambiado desde que se publicó: las apps no podrán actualizarse hasta volver a fijarla.'));
+        actions.prepend(button('approve', 'Volver a fijar', () => {
+          ask(`¿Fijar la v${r.version} a los archivos que hay ahora en GitHub?`, 'Volver a fijar')
+            .then((ok) => ok && releaseCall(`/api/v1/admin/releases/${r.version}/repin`, 'POST'));
+        }));
+      }
       card.append(info, el('span', { className: `tag badge ${pub ? 'published' : 'unpublished'}` },
         pub ? 'Publicada' : 'Sin publicar'), actions);
       list.append(card);

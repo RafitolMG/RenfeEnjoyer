@@ -315,10 +315,23 @@ def list_releases(_: AdminDep, session: SessionDep) -> dict[str, Any]:
         github_error = None
     except releases.GitHubError as exc:
         on_github, github_error = [], str(exc)
+    by_version = {entry["version"]: entry for entry in on_github}
+    published = []
+    for release in releases.published(session):
+        entry = release.model_dump()
+        # A rebuilt release changes the files behind a pinned version: apps would
+        # download them, find they do not match and give up. Re-pinning fixes it.
+        current = by_version.get(release.version)
+        entry["stale"] = current is not None and any(
+            (asset := releases.asset_for(release, platform)) is None
+            or asset.sha256 != build["sha256"]
+            for platform, build in current["assets"].items()
+        )
+        published.append(entry)
     return {
         "github": on_github,
         "github_error": github_error,
-        "published": releases.published(session),
+        "published": published,
         "min_version": releases.policy(session).min_version,
     }
 
@@ -354,6 +367,38 @@ def publish_release(
         linux_sha256=linux.sha256 if linux else None,
         linux_size=linux.size if linux else None,
     )
+    session.add(release)
+    session.commit()
+    session.refresh(release)
+    return release
+
+
+@app.post("/api/v1/admin/releases/{version}/repin")
+def repin_release(version: str, _: AdminDep, session: SessionDep) -> PublishedRelease:
+    """Pin a published version to the files GitHub has for it now.
+
+    For a release rebuilt under the same version. Unlike withdrawing and publishing
+    again, it keeps the version offered throughout, even when it is the minimum.
+    """
+    release = session.exec(
+        select(PublishedRelease).where(PublishedRelease.version == version)
+    ).first()
+    if release is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Esa versión no está publicada")
+    found = next((r for r in _github_or_502() if r.version == version), None)
+    windows = found.assets.get("windows") if found else None
+    if found is None or windows is None:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            f"GitHub no tiene la versión {version} con "
+            f"{config.RELEASE_ASSETS['windows']}",
+        )
+    linux = found.assets.get("linux")
+    release.url, release.sha256, release.size = windows.url, windows.sha256, windows.size
+    release.linux_url = linux.url if linux else None
+    release.linux_sha256 = linux.sha256 if linux else None
+    release.linux_size = linux.size if linux else None
+    release.published_at = utcnow()
     session.add(release)
     session.commit()
     session.refresh(release)

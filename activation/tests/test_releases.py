@@ -235,3 +235,30 @@ def test_a_release_without_the_windows_build_cannot_be_published(
     assert (
         admin.post("/api/v1/admin/releases", json={"version": "2.0.5"}).status_code == 404
     )
+
+
+def test_a_rebuilt_release_is_flagged_and_re_pinned_in_place(
+    admin: TestClient, github: list
+) -> None:
+    """The release was rebuilt under the same version: the pinned files are gone."""
+    github.append(with_linux("v2.0.5"))
+    ask(admin)
+    publish(admin, "2.0.5")
+    admin.put("/api/v1/admin/min-version", json={"min_version": "2.0.5"})
+
+    def published() -> dict:
+        return admin.get("/api/v1/admin/releases").json()["published"][0]
+
+    assert published()["stale"] is False
+    github[-1] = with_linux("v2.0.5", digest="sha256:" + "22" * 32)
+    assert published()["stale"] is True
+
+    assert admin.post("/api/v1/admin/releases/2.0.5/repin").status_code == 200
+    assert published()["stale"] is False
+    assert update_claims(check_from(admin, "linux"))["sha256"] == "22" * 32
+    # Still the minimum, never withdrawn on the way.
+    assert update_claims(check(admin))["min_version"] == "2.0.5"
+
+
+def test_re_pinning_needs_a_published_version(admin: TestClient, github: list) -> None:
+    assert admin.post("/api/v1/admin/releases/2.0.3/repin").status_code == 404
