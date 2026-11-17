@@ -32,13 +32,13 @@ necesitan nada de esto.
 Una sola vez en cada equipo:
 
 ```bash
-git clone -b ubuntu-dev https://github.com/RafitolMG/RenfeEnjoyer.git
+git clone https://github.com/RafitolMG/RenfeEnjoyer.git
 cd RenfeEnjoyer
 ./scripts/install.sh
 ```
 
-El `-b ubuntu-dev` importa: la rama por defecto del repositorio, `main`, sigue siendo la versión
-antigua de Tkinter. Si ya clonaste sin él, cambia de rama con `git switch ubuntu-dev`.
+La versión antigua de Tkinter está en la rama `legacy-tkinter`. Si clonaste el repositorio cuando
+esta versión vivía en `ubuntu-dev`, cambia a `main` con `git fetch && git switch main`.
 
 `install.sh` instala las dependencias de Python y del frontend y crea el comando `renfe` en
 `~/.local/bin`. No instala nada a nivel de sistema: si falta Python, Node, Chromium o Tailscale, lo
@@ -141,7 +141,7 @@ buscar hasta actualizar.
 ### Publicar una versión
 
 1. Sube la versión en `backend/app/config.py` (`APP_VERSION`), `backend/pyproject.toml` y
-   `frontend/package.json`, y haz commit en `ubuntu-dev`.
+   `frontend/package.json`, y haz commit en `main`.
 2. Crea y sube la etiqueta, que tiene que coincidir con `APP_VERSION` o la publicación falla:
 
    ```bash
@@ -223,7 +223,7 @@ servidor descarga en su volumen de datos y renueva cada mes: las IPs no se enví
 ### Despliegue en Coolify
 
 1. **DNS**: un registro `A` de `renfe.rafitolmg.dev` a la IP del servidor.
-2. **Nueva aplicación** desde este repositorio público, rama `ubuntu-dev`, *Build Pack* `Dockerfile`,
+2. **Nueva aplicación** desde este repositorio público, rama `main`, *Build Pack* `Dockerfile`,
    *Base Directory* `/activation`, puerto `8000` y dominio `https://renfe.rafitolmg.dev`.
 3. **Volumen persistente** montado en `/data`. Sin él, cada despliegue borra todas las aprobaciones.
    Guarda también la base de ubicaciones de DB-IP, unos 130 MB.

@@ -2,8 +2,8 @@ name: CI
 
 on:
   push:
-    branches: [main, develop, ubuntu-dev]
-    # A version tag (v2.0.0…) also publishes the Windows executable as a GitHub release.
+    branches: [main]
+    # A version tag (v2.0.0…) also publishes the executables as a GitHub release.
     tags: ['v*']
   pull_request:
 

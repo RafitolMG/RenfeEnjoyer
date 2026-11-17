@@ -15,14 +15,14 @@ There is no separate frontend repo — this is a **monorepo** (the GitHub repo i
 - `backend/` — FastAPI app wrapping the Selenium bot, SQLite for profiles.
 - `frontend/` — Vue 3 + TypeScript SPA (Vite) that launches searches and streams progress.
 
-It was a Tkinter desktop app until the v2 restructure; that version is still what `main` holds.
+It was a Tkinter desktop app until the v2 restructure; that version lives on in the `legacy-tkinter` branch and
+the `1.0.0` tag. v2 was developed on `ubuntu-dev` and became `main` on 2026-11-17.
 
 ## Running & building
 
 ```bash
 # One-off setup on a machine: venv at the repo root (not backend/), npm ci, `renfe` link in ~/.local/bin.
-# Reports missing system packages instead of installing them. Clone with -b ubuntu-dev: `main` is still
-# the old Tkinter app.
+# Reports missing system packages instead of installing them.
 ./scripts/install.sh
 
 # Development, two terminals
