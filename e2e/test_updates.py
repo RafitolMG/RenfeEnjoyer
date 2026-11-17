@@ -190,6 +190,12 @@ def test_a_minimum_version_stops_older_ones_from_searching(
     admin.select_option("#min-version", "")
     admin.locator("#confirm-dialog").get_by_role("button", name="Aceptar").click()
     expect(admin.locator("#min-version")).to_have_value("")
+    # The select changes at once; the server only once the request lands.
+    wait_until(
+        lambda: (
+            activation.admin("GET", "/api/v1/admin/releases")[1]["min_version"] is None
+        )
+    )
     app.api("POST", "/api/update/check")
     assert (
         app.api(
