@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "renfe-enjoyer-backend"
-version = "2.0.3"
+version = "2.0.4"
 description = "Selenium based Renfe season-pass booking bot, exposed over HTTP"
 requires-python = ">=3.12"
 dependencies = [

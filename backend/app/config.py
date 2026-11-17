@@ -33,7 +33,7 @@ HEADLESS = os.getenv("RENFE_HEADLESS", "").lower() in {"1", "true", "yes"}
 # Renfe's pages are slow and the results table is polled, so waits are generous.
 SELENIUM_TIMEOUT = int(os.getenv("RENFE_SELENIUM_TIMEOUT", "100"))
 
-APP_VERSION = "2.0.3"
+APP_VERSION = "2.0.4"
 
 # The Windows executable only runs on computers the activation server has approved. The
 # variable can switch the check on for a checkout (to try it), never off for the bundle.
