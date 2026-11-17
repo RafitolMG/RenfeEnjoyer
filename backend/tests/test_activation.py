@@ -289,3 +289,15 @@ def test_an_offer_the_server_did_not_sign_as_an_update_is_ignored(
     assert offers == [None]
     # The license that came with it still counts.
     assert activator.is_authorized()
+
+
+def test_checks_and_requests_describe_the_computer(
+    make_activator: Callable[..., Activator], server: FakeServer
+) -> None:
+    activator = make_activator()
+    activator.refresh(force=True)
+    activator.request_access("Ana", "ana@example.com")
+    for _, body in server.calls:
+        device = body["device"]
+        assert device["hostname"] and device["os"] and device["timezone"]
+        assert all(len(value) <= activation.DETAIL_LIMIT for value in device.values())

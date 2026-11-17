@@ -73,6 +73,16 @@ over https via the proxy headers). `ADMIN_PASSWORD` is only the initial password
 variable. This is a deterrent, not protection: the source is public and GPL, so it guards the distributed
 executable only. Changing the key pair means rebuilding the `.exe`.
 
+**The admin sees who asks and from where.** The server stores the IP of each request and of the last check-in
+(`--proxy-headers` makes `request.client` the caller, not Traefik) plus a check-in history (`CheckInRecord`:
+one row per address/version change or 10 minutes, kept 90 days). Since 2.0.4 the app also sends
+`device_info()` — hostname, OS user, OS version, locale, time zone — on every check and request, and the
+activation form says so; older versions simply send none. Locations come from DB-IP's free City Lite database
+(`activation/app/geo.py`), downloaded into the data volume and renewed monthly in a background thread, so IPs
+never leave the server; they are resolved when the admin page asks, and its CC BY licence is why the admin
+credits DB-IP. The deployed SQLite predates these columns and `create_all` never alters tables, so
+`db.add_missing_columns()` adds any nullable column a model gained; keep new columns nullable.
+
 **The executable updates itself, but only to versions the admin publishes.** CI turns a `v*` tag into a
 GitHub release (and fails if the tag is not `v` + `APP_VERSION`); nothing reaches the apps until the admin's
 "Versiones" tab publishes it (`activation/app/releases.py`). Publishing pins the SHA-256 GitHub reports for the

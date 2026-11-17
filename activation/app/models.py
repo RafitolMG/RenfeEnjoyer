@@ -25,6 +25,27 @@ class Machine(SQLModel, table=True):
     decided_at: datetime | None = None
     last_seen_at: datetime | None = None
     app_version: str | None = None
+    # Where it asked from and last checked in from (behind Traefik: the client's address).
+    request_ip: str | None = None
+    last_ip: str | None = None
+    # Reported by the app since 2.0.4; older versions leave them empty.
+    hostname: str | None = None
+    os_user: str | None = None
+    os_name: str | None = None
+    locale: str | None = None
+    timezone: str | None = None
+
+
+class CheckInRecord(SQLModel, table=True):
+    """One check-in of a known computer: when, from where and on which version."""
+
+    __tablename__ = "checkin"
+
+    id: int | None = Field(default=None, primary_key=True)
+    machine_id: int = Field(index=True)
+    at: datetime = Field(default_factory=utcnow, index=True)
+    ip: str | None = None
+    app_version: str | None = None
 
 
 def as_utc(moment: datetime) -> datetime:

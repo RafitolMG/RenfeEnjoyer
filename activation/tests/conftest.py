@@ -16,6 +16,8 @@ KEY = Ed25519PrivateKey.generate()
 _ROOT = Path(tempfile.mkdtemp(prefix="activation_test_"))
 os.environ["ACTIVATION_DB_PATH"] = str(_ROOT / "test.db")
 os.environ["ADMIN_PASSWORD"] = "correct horse"
+# Tests never download the GeoIP database.
+os.environ["GEOIP_ENABLED"] = "0"
 
 from app.signing import b64encode  # noqa: E402
 

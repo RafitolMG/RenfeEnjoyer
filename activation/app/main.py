@@ -9,6 +9,7 @@ while a revocation still takes effect within that window.
 import mimetypes
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -18,11 +19,20 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlmodel import Session, SQLModel, col, select
+from sqlmodel import delete as sql_delete
 
-from app import auth, config, releases
+from app import auth, config, geo, releases
 from app.auth import AdminDep
-from app.db import SessionDep, engine
-from app.models import Machine, MachineStatus, PublishedRelease, UpdatePolicy, utcnow
+from app.db import SessionDep, add_missing_columns, engine
+from app.models import (
+    CheckInRecord,
+    Machine,
+    MachineStatus,
+    PublishedRelease,
+    UpdatePolicy,
+    as_utc,
+    utcnow,
+)
 from app.signing import issue_license, load_private_key, public_key_of
 
 
@@ -33,6 +43,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.signing_key = load_private_key(config.PRIVATE_KEY)
     config.DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
     SQLModel.metadata.create_all(engine)
+    add_missing_columns()
+    geo.start()
     yield
 
 
@@ -67,9 +79,28 @@ def home() -> str:
 MachineId = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
 
 
+# Check-ins closer together than this from the same address are not recorded again.
+CHECKIN_SPACING = timedelta(minutes=10)
+CHECKIN_RETENTION = timedelta(days=90)
+CHECKINS_SHOWN = 100
+
+Detail = Annotated[str, Field(max_length=120)]
+
+
+class Device(BaseModel):
+    """What the app reports about the computer, since 2.0.4."""
+
+    hostname: Detail | None = None
+    user: Detail | None = None
+    os: Detail | None = None
+    locale: Detail | None = None
+    timezone: Detail | None = None
+
+
 class CheckIn(BaseModel):
     machine_id: MachineId
     app_version: str | None = Field(default=None, max_length=40)
+    device: Device | None = None
 
 
 class AccessRequest(CheckIn):
@@ -99,13 +130,49 @@ def _find(session: Session, machine_id: str) -> Machine | None:
     return session.exec(select(Machine).where(Machine.machine_id == machine_id)).first()
 
 
-def _touch(session: Session, machine: Machine, app_version: str | None) -> None:
-    machine.last_seen_at = utcnow()
-    if app_version:
-        machine.app_version = app_version
+def _client_ip(request: Request) -> str | None:
+    # Behind Traefik with --proxy-headers this is the caller, not the proxy.
+    return request.client.host if request.client else None
+
+
+def _touch(session: Session, machine: Machine, payload: CheckIn, ip: str | None) -> None:
+    now = utcnow()
+    machine.last_seen_at = now
+    machine.last_ip = ip
+    if payload.app_version:
+        machine.app_version = payload.app_version
+    if payload.device is not None:
+        device = payload.device
+        machine.hostname, machine.os_user = device.hostname, device.user
+        machine.os_name, machine.locale = device.os, device.locale
+        machine.timezone = device.timezone
     session.add(machine)
     session.commit()
     session.refresh(machine)
+    assert machine.id is not None
+    _record_checkin(session, machine.id, payload.app_version, ip, now)
+
+
+def _record_checkin(
+    session: Session, machine_id: int, version: str | None, ip: str | None, now: datetime
+) -> None:
+    last = session.exec(
+        select(CheckInRecord)
+        .where(CheckInRecord.machine_id == machine_id)
+        .order_by(col(CheckInRecord.at).desc())
+    ).first()
+    if (
+        last is not None
+        and last.ip == ip
+        and last.app_version == version
+        and as_utc(last.at) > now - CHECKIN_SPACING
+    ):
+        return
+    session.add(CheckInRecord(machine_id=machine_id, at=now, ip=ip, app_version=version))
+    session.exec(
+        sql_delete(CheckInRecord).where(col(CheckInRecord.at) < now - CHECKIN_RETENTION)
+    )
+    session.commit()
 
 
 @app.post("/api/v1/check")
@@ -113,7 +180,7 @@ def check(payload: CheckIn, request: Request, session: SessionDep) -> dict[str, 
     """Where this computer stands; approved ones get a fresh license."""
     machine = _find(session, payload.machine_id)
     if machine is not None:
-        _touch(session, machine, payload.app_version)
+        _touch(session, machine, payload, _client_ip(request))
     return _answer(request, session, machine)
 
 
@@ -135,12 +202,15 @@ def request_access(
                 "Hay demasiadas solicitudes pendientes; inténtalo más tarde.",
             )
         machine = Machine(
-            machine_id=payload.machine_id, name=payload.name, contact=payload.contact
+            machine_id=payload.machine_id,
+            name=payload.name,
+            contact=payload.contact,
+            request_ip=_client_ip(request),
         )
     elif machine.status == MachineStatus.PENDING:
         machine.name, machine.contact = payload.name, payload.contact
     # An approved or revoked computer keeps its decision: asking again changes nothing.
-    _touch(session, machine, payload.app_version)
+    _touch(session, machine, payload, _client_ip(request))
     return _answer(request, session, machine)
 
 
@@ -159,8 +229,34 @@ def public_key(request: Request) -> dict[str, str]:
 
 
 @app.get("/api/v1/admin/machines")
-def list_machines(_: AdminDep, session: SessionDep) -> list[Machine]:
-    return list(session.exec(select(Machine).order_by(col(Machine.requested_at).desc())))
+def list_machines(_: AdminDep, session: SessionDep) -> list[dict[str, Any]]:
+    machines = session.exec(select(Machine).order_by(col(Machine.requested_at).desc()))
+    return [
+        {
+            **machine.model_dump(),
+            "request_location": geo.locate(machine.request_ip),
+            "last_location": geo.locate(machine.last_ip),
+        }
+        for machine in machines
+    ]
+
+
+@app.get("/api/v1/admin/machines/{machine_id}/checkins")
+def list_checkins(
+    machine_id: int, _: AdminDep, session: SessionDep
+) -> list[dict[str, Any]]:
+    """The computer's latest check-ins, newest first."""
+    if session.get(Machine, machine_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Equipo no encontrado")
+    records = session.exec(
+        select(CheckInRecord)
+        .where(CheckInRecord.machine_id == machine_id)
+        .order_by(col(CheckInRecord.at).desc())
+        .limit(CHECKINS_SHOWN)
+    )
+    return [
+        {**record.model_dump(), "location": geo.locate(record.ip)} for record in records
+    ]
 
 
 def _decide(session: Session, machine_id: int, decision: MachineStatus) -> Machine:
@@ -191,6 +287,9 @@ def delete(machine_id: int, _: AdminDep, session: SessionDep) -> None:
     machine = session.get(Machine, machine_id)
     if machine is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Equipo no encontrado")
+    session.exec(
+        sql_delete(CheckInRecord).where(col(CheckInRecord.machine_id) == machine_id)
+    )
     session.delete(machine)
     session.commit()
 

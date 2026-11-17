@@ -66,6 +66,12 @@
   .policy select { font: inherit; padding: 6px 10px; color: inherit; background: var(--surface);
                    border: 1px solid var(--border-strong); border-radius: 5px; }
   .published { color: var(--ok); } .unpublished { color: var(--muted); }
+  .history { grid-column: 1 / -1; margin: 0; padding: 10px 12px; list-style: none; font-family: var(--mono);
+             font-size: 12.5px; color: var(--muted); background: var(--bg); border: 1px solid var(--border);
+             border-radius: 5px; max-height: 260px; overflow-y: auto; }
+  .history li { padding: 2px 0; overflow-wrap: anywhere; }
+  .attribution { margin-top: 32px; font-size: 12px; color: var(--muted); }
+  .attribution a { color: inherit; }
 </style>
 </head>
 <body>
@@ -103,6 +109,7 @@
     </div>
     <div id="versions" class="list" aria-live="polite"></div>
   </section>
+  <p class="attribution">Ubicación aproximada por <a href="https://db-ip.com">DB-IP</a></p>
 </main>
 
 <dialog id="password-dialog" aria-labelledby="password-title">
@@ -164,6 +171,15 @@
           (m.app_version ? ` · v${m.app_version}` : '')),
         el('div', { className: 'meta code' }, `Equipo ${m.machine_id.slice(0, 12)}`),
       );
+      const device = [m.hostname, m.os_user].filter(Boolean).join(' · ');
+      if (device) info.append(el('div', { className: 'meta code' }, device));
+      const system = [m.os_name, m.locale, m.timezone].filter(Boolean).join(' · ');
+      if (system) info.append(el('div', { className: 'meta' }, system));
+      const place = (ip, location) => [ip, location].filter(Boolean).join(' · ');
+      if (m.request_ip) info.append(el('div', { className: 'meta' }, `Pidió desde ${place(m.request_ip, m.request_location)}`));
+      if (m.last_ip && m.last_ip !== m.request_ip) {
+        info.append(el('div', { className: 'meta' }, `Última conexión desde ${place(m.last_ip, m.last_location)}`));
+      }
       const actions = el('div', { className: 'actions' });
       if (m.status !== 'approved') {
         actions.append(button('approve', 'Aprobar', () => act(m.id, 'approve')));
@@ -174,11 +190,32 @@
       actions.append(button('', 'Borrar', () => {
         if (confirm(`¿Borrar a ${m.name}?`)) remove(m.id);
       }));
-      card.append(info, el('span', { className: `tag badge ${m.status}` }, LABELS[m.status]), actions);
+      const history = el('ul', { className: 'history', hidden: !openHistories.has(m.id) });
+      actions.append(button('', 'Historial', () => toggleHistory(m.id, history)));
+      card.append(info, el('span', { className: `tag badge ${m.status}` }, LABELS[m.status]), actions, history);
+      if (openHistories.has(m.id)) fillHistory(m.id, history);
       list.append(card);
     }
   }
 
+  // Kept open across the list's periodic reloads.
+  const openHistories = new Set();
+  function toggleHistory(id, node) {
+    if (openHistories.delete(id)) { node.hidden = true; return; }
+    openHistories.add(id);
+    node.hidden = false;
+    fillHistory(id, node);
+  }
+  async function fillHistory(id, node) {
+    try {
+      const entries = await call(`/api/v1/admin/machines/${id}/checkins`);
+      node.replaceChildren(...(entries.length ? entries.map((e) => el('li', {},
+        [when(e.at), e.ip, e.location, e.app_version && `v${e.app_version}`].filter(Boolean).join(' · ')))
+        : [el('li', {}, 'Sin conexiones registradas.')]));
+    } catch (error) {
+      node.replaceChildren(el('li', { className: 'error' }, error.message));
+    }
+  }
   function button(className, label, onClick) {
     const b = el('button', { className, type: 'button' }, label);
     b.addEventListener('click', onClick);

@@ -17,6 +17,12 @@ LICENSE_DAYS = int(os.getenv("LICENSE_DAYS", "7"))
 # Caps how many unanswered requests anyone can pile up in the database.
 MAX_PENDING = int(os.getenv("MAX_PENDING", "500"))
 
+# DB-IP's City Lite database (app/geo.py), downloaded here and renewed monthly.
+GEOIP_PATH = Path(
+    os.getenv("GEOIP_PATH", str(DATABASE_PATH.parent / "dbip-city-lite.mmdb"))
+)
+GEOIP_ENABLED = os.getenv("GEOIP_ENABLED", "1").lower() not in {"0", "false", "no"}
+
 # Where CI publishes the Windows executable, and the asset's name in each release.
 GITHUB_REPO = os.getenv("GITHUB_REPO", "RafitolMG/RenfeEnjoyer")
 RELEASE_ASSET = "RenfeEnjoyer.exe"

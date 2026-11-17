@@ -99,6 +99,10 @@ onBeforeUnmount(() => window.clearInterval(timer))
       <button type="submit" class="btn btn--primary" :disabled="!canRequest">
         {{ sending ? 'Enviando…' : 'Solicitar acceso' }}
       </button>
+      <p class="privacy">
+        Junto con la solicitud se envían tu IP, el nombre de este equipo, tu usuario y la
+        versión del sistema.
+      </p>
     </form>
 
     <p v-if="error || activation.error" class="error-text">{{ error || activation.error }}</p>
@@ -123,6 +127,12 @@ onBeforeUnmount(() => window.clearInterval(timer))
 
 .lead {
   margin: 0;
+}
+
+.privacy {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 .machine {

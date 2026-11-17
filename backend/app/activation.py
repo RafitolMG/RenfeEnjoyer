@@ -11,9 +11,13 @@ only has the public key, so a fake server cannot hand out approvals.
 """
 
 import base64
+import contextlib
+import getpass
 import hashlib
 import json
+import locale
 import logging
+import platform
 import sys
 import threading
 import time
@@ -81,6 +85,27 @@ def raw_machine_id() -> str:
 def machine_id() -> str:
     """This computer's id as the server sees it: a hash, never the raw Windows id."""
     return hashlib.sha256(f"renfe-enjoyer:{raw_machine_id()}".encode()).hexdigest()
+
+
+DETAIL_LIMIT = 120
+
+
+def device_info() -> dict[str, str]:
+    """What the admin sees about this computer, besides its id: who is asking.
+
+    The activation form says these are sent. Anything that cannot be read is left out.
+    """
+    details: dict[str, str] = {
+        "hostname": platform.node(),
+        "os": f"{platform.system()} {platform.release()} ({platform.version()})",
+        "locale": locale.getlocale()[0] or "",
+    }
+    # getuser() raises when no user name is set anywhere it looks.
+    with contextlib.suppress(OSError, KeyError, ImportError):
+        details["user"] = getpass.getuser()
+    now = datetime.now().astimezone()
+    details["timezone"] = f"{now.tzname()} (UTC{now.strftime('%z')})"
+    return {key: value[:DETAIL_LIMIT] for key, value in details.items() if value}
 
 
 @dataclass
@@ -247,13 +272,21 @@ class Activator:
                 time.monotonic() - self._checked_at >= RECHECK_AFTER.total_seconds()
             )
             if force or stale:
-                self._exchange("/api/v1/check", {"app_version": APP_VERSION})
+                self._exchange(
+                    "/api/v1/check",
+                    {"app_version": APP_VERSION, "device": device_info()},
+                )
 
     def request_access(self, name: str, contact: str) -> None:
         with self._lock:
             self._exchange(
                 "/api/v1/requests",
-                {"name": name, "contact": contact, "app_version": APP_VERSION},
+                {
+                    "name": name,
+                    "contact": contact,
+                    "app_version": APP_VERSION,
+                    "device": device_info(),
+                },
             )
 
     # --- what the app asks ------------------------------------------------------------

@@ -17,3 +17,25 @@ def get_session() -> Iterator[Session]:
 
 
 SessionDep = Annotated[Session, Depends(get_session)]
+
+
+def add_missing_columns() -> None:
+    """Add columns new models gained since the table was created.
+
+    `create_all` only creates missing tables, and the deployed database predates some
+    columns. Every one added this way is nullable, so existing rows stay valid.
+    """
+    from sqlmodel import SQLModel
+
+    with engine.begin() as connection:
+        for table in SQLModel.metadata.sorted_tables:
+            existing = {
+                row[1]
+                for row in connection.exec_driver_sql(f"PRAGMA table_info({table.name})")
+            }
+            for column in table.columns:
+                if column.name not in existing:
+                    kind = column.type.compile(dialect=engine.dialect)
+                    connection.exec_driver_sql(
+                        f"ALTER TABLE {table.name} ADD COLUMN {column.name} {kind}"
+                    )
