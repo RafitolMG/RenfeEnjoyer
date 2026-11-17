@@ -4,22 +4,30 @@ Bot que automatiza la compra de billetes de abono de Renfe. Vigila la página de
 en cuanto aparece una plaza en el tren que buscas, la reserva y te cede el navegador para que
 completes la compra.
 
-Monorepo con dos piezas:
+Se usa de dos formas: con los **ejecutables** para Windows y Linux, que no necesitan instalar nada
+más que Chrome (ver [Ejecutables](#ejecutables-windows-y-linux)), o **desde el código**, que es
+como se desarrolla y como se sirve por Tailscale para usarla desde el móvil.
 
-| Directorio  | Contenido                                                         |
-| ----------- | ----------------------------------------------------------------- |
-| `backend/`  | API FastAPI + el bot de Selenium, con SQLite para los perfiles     |
-| `frontend/` | SPA en Vue 3 + TypeScript que lanza y monitoriza las búsquedas     |
+Monorepo con tres piezas:
 
-## Requisitos
+| Directorio    | Contenido                                                              |
+| ------------- | ---------------------------------------------------------------------- |
+| `backend/`    | API FastAPI + el bot de Selenium, con SQLite para los perfiles          |
+| `frontend/`   | SPA en Vue 3 + TypeScript que lanza y monitoriza las búsquedas          |
+| `activation/` | Servidor que aprueba equipos y reparte las actualizaciones              |
+
+## Desde el código
+
+### Requisitos
 
 - Python 3.12+
 - Node 20+
 - Chromium o Chrome, y `chromedriver` (en Arch: `sudo pacman -S chromium chromedriver`)
 
-## Puesta en marcha
+### Puesta en marcha
 
-Esto es para Linux. En Windows hay un ejecutable que no necesita nada de esto: ver [Windows](#windows).
+Esto es para Linux. Si solo quieres usar la app, los [ejecutables](#ejecutables-windows-y-linux) no
+necesitan nada de esto.
 
 Una sola vez en cada equipo:
 
@@ -76,86 +84,127 @@ cd backend
 PYTHONPATH=. ../.venv/bin/python scripts/migrate_legacy_db.py
 ```
 
-## Windows
+## Ejecutables (Windows y Linux)
 
-En Windows la app es un único ejecutable, `RenfeEnjoyer.exe`. No hace falta Python, Node ni
-Tailscale; solo **Google Chrome** instalado. El `chromedriver` lo descarga Selenium solo la primera
-vez, así que esa primera búsqueda necesita internet y tarda algo más.
+La app también se distribuye como un único archivo por sistema, que no necesita Python, Node ni
+Tailscale; solo **Google Chrome** (o Chromium en Linux). El `chromedriver` lo descarga Selenium la
+primera vez, así que esa primera búsqueda necesita internet y tarda algo más.
 
-**Descargarlo.** Desde <https://renfe.rafitolmg.dev>, o directamente la última versión en
-<https://github.com/RafitolMG/RenfeEnjoyer/releases/latest/download/RenfeEnjoyer.exe>. No hace
-falta cuenta de GitHub. El CI también lo compila en cada push y lo deja como artefacto
-`RenfeEnjoyer-windows` en *Actions*, pero esos piden cuenta y caducan a los 90 días.
+**Descargarlo** desde <https://renfe.rafitolmg.dev>, o la última versión directamente:
+[`RenfeEnjoyer.exe`](https://github.com/RafitolMG/RenfeEnjoyer/releases/latest/download/RenfeEnjoyer.exe)
+para Windows 10 u 11 y
+[`RenfeEnjoyer-linux`](https://github.com/RafitolMG/RenfeEnjoyer/releases/latest/download/RenfeEnjoyer-linux)
+para Linux x86_64 (cualquier distribución con glibc 2.35 o posterior: Ubuntu 22.04, Debian 12,
+Fedora 36…). No hace falta cuenta de GitHub.
 
-**Publicar una versión.** Crea y sube una etiqueta `v*` en un commit de `ubuntu-dev`:
+**Usarlo.**
+
+- **Windows**: doble clic en `RenfeEnjoyer.exe`. Se abre una consola, arranca el servidor y abre la
+  app en el navegador en `http://127.0.0.1:8000`. Cerrar la consola para la app. El ejecutable no
+  está firmado, así que **SmartScreen avisará** la primera vez: *Más información* → *Ejecutar de
+  todas formas*.
+- **Linux**, desde una terminal:
+
+  ```bash
+  chmod +x RenfeEnjoyer-linux
+  ./RenfeEnjoyer-linux
+  ```
+
+  `Ctrl+C` la para. Lanzarlo con doble clic desde el gestor de archivos no abre terminal en muchos
+  escritorios, y la app quedaría en segundo plano sin una forma fácil de pararla.
+
+Si ya estaba abierta, lanzarla otra vez solo vuelve a abrir el navegador. Si el puerto 8000 está
+ocupado, elige otro con la variable `RENFE_PORT`.
+
+Diferencias con la versión desde el código:
+
+- **Solo se puede usar desde el propio equipo.** Escucha en `127.0.0.1`, no en Tailscale ni en la
+  red local, así que no se abre desde el móvil.
+- **Los datos** (perfiles en `renfe_enjoyer.db`, sesiones de Renfe en `browser-profile/`, la clave
+  de cifrado y la licencia) **están en `%LOCALAPPDATA%\RenfeEnjoyer`** en Windows y en
+  **`~/.local/share/RenfeEnjoyer`** en Linux. Sobreviven a cambiar de versión; para empezar de
+  cero, borra esa carpeta.
+- **Necesitan activación**: la primera vez muestran una pantalla para solicitar acceso, que el
+  administrador aprueba. Ver [Servidor de activación](#servidor-de-activación).
+
+### Actualizaciones
+
+Los ejecutables se actualizan solos, pero solo a versiones que el administrador ha publicado. Cuando
+hay una nueva, la app la descarga en segundo plano, comprueba que es exactamente la publicada y
+muestra **Actualizar**. Al pulsarlo, siempre sin una búsqueda en marcha, la versión nueva sustituye
+a la vieja y la página se recarga sola. Si la nueva no llega a arrancar, la app vuelve sola a la
+anterior y lo dice.
+
+Si el administrador marca una **versión mínima**, las anteriores siguen abriéndose pero no dejan
+buscar hasta actualizar.
+
+### Publicar una versión
+
+1. Sube la versión en `backend/app/config.py` (`APP_VERSION`), `backend/pyproject.toml` y
+   `frontend/package.json`, y haz commit en `ubuntu-dev`.
+2. Crea y sube la etiqueta, que tiene que coincidir con `APP_VERSION` o la publicación falla:
+
+   ```bash
+   git tag v2.1.0 && git push origin v2.1.0
+   ```
+
+   El CI compila los dos ejecutables, los prueba (en Windows, también el relevo de una
+   actualización real y su vuelta atrás) y los publica como Release de GitHub, que pasa a ser la
+   que descargan los botones de la página de inicio.
+3. En el admin, pestaña **Versiones**, pulsa **Publicar** en la nueva. Hasta entonces no se
+   ofrece a ninguna app.
+
+En cada push el CI también deja los ejecutables como artefactos en *Actions*
+(`RenfeEnjoyer-windows`, `RenfeEnjoyer-linux`), aunque esos piden cuenta y caducan a los 90 días.
+
+### Compilarlos a mano
+
+En un equipo con Python 3.12+ y Node 20+ del mismo sistema que el ejecutable que quieres
+(PyInstaller no compila para otro sistema):
 
 ```bash
-git tag v2.1.0 && git push origin v2.1.0
-```
-
-El job `windows` del CI compila el `.exe`, lo prueba y lo publica como Release de GitHub, que pasa a
-ser la que descarga la página de inicio. Sube también `APP_VERSION` en `backend/app/config.py`, que es
-la versión que el `.exe` envía al servidor de activación.
-
-**Usarlo.** Doble clic en `RenfeEnjoyer.exe`. Se abre una consola, arranca el servidor y abre la
-app en el navegador en `http://127.0.0.1:8000`. **Cerrar la consola para la app.** Si ya estaba
-abierta, un segundo doble clic solo vuelve a abrir el navegador.
-
-Diferencias con Linux:
-
-- **Solo se puede usar desde el propio PC.** Escucha en `127.0.0.1`, no en Tailscale ni en la red
-  local, así que no se abre desde el móvil.
-- **Los datos se guardan en `%LOCALAPPDATA%\RenfeEnjoyer`**: los perfiles en `renfe_enjoyer.db`
-  y las sesiones de Renfe en `browser-profile\`. Sobreviven a cambiar de versión del `.exe`; para
-  empezar de cero, borra esa carpeta.
-- Si el puerto 8000 está ocupado, lánzalo con otro: `set RENFE_PORT=8100` y luego
-  `RenfeEnjoyer.exe` desde la misma consola.
-
-**Activación.** El `.exe` solo funciona en equipos aprobados. La primera vez muestra una pantalla
-para solicitar acceso con un nombre y un contacto; la solicitud llega al servidor de activación y,
-cuando el administrador la aprueba, la app se desbloquea sola (lo comprueba cada 30 segundos). Ver
-[Servidor de activación](#servidor-de-activación).
-
-El ejecutable no está firmado, así que **Windows SmartScreen avisará** la primera vez («Windows
-protegió su PC»). Pulsa *Más información* → *Ejecutar de todas formas*.
-
-**Compilarlo a mano**, en un Windows con Python 3.12+ y Node 20+:
-
-```powershell
-git clone -b ubuntu-dev https://github.com/RafitolMG/RenfeEnjoyer.git
-cd RenfeEnjoyer
 python -m venv .venv
-.venv\Scripts\pip install -e ".\backend[build]"
-cd frontend; npm ci; npm run build; cd ..
-.venv\Scripts\pyinstaller --noconfirm packaging\renfe-enjoyer.spec   # deja dist\RenfeEnjoyer.exe
+.venv/bin/pip install -e "./backend[build]"            # Windows: .venv\Scripts\pip
+(cd frontend && npm ci && npm run build)
+.venv/bin/pyinstaller --noconfirm packaging/renfe-enjoyer.spec   # deja dist/RenfeEnjoyer(.exe)
 ```
-
-PyInstaller no compila para otro sistema: el `.exe` solo se puede generar en Windows. En Linux la
-misma receta genera un binario de Linux, que sirve para probar el empaquetado.
 
 ## Servidor de activación
 
-`activation/` es un servidor aparte que decide qué equipos pueden usar el `.exe` de Windows. Solo
-afecta al ejecutable: quien arranca la app desde el código no pasa por él (el código es público y
-GPL, así que la comprobación se podría quitar de todas formas).
+`activation/` es un servidor aparte que decide qué equipos pueden usar los ejecutables y les reparte
+las actualizaciones. Solo afecta a los ejecutables: quien arranca la app desde el código no pasa por
+él (el código es público y GPL, así que la comprobación se podría quitar de todas formas).
 
 Cómo funciona:
 
-- Cada equipo se identifica con un hash de su `MachineGuid` de Windows, nunca con el valor en bruto.
+- Cada equipo se identifica con un hash del identificador del sistema (`MachineGuid` en Windows,
+  `/etc/machine-id` en Linux), nunca con el valor en bruto.
   La app muestra los 12 primeros caracteres como «código de este equipo», los mismos que ve el
   administrador.
 - Al aprobarlo, el servidor le entrega una **licencia firmada** (Ed25519) para ese equipo y válida 7
-  días. La app la guarda en `%LOCALAPPDATA%\RenfeEnjoyer\license.json` y la renueva al consultar al
-  servidor, como mucho una vez por hora.
+  días. La app la guarda en su carpeta de datos (`license.json`) y la renueva al consultar al servidor,
+  como mucho una vez por hora.
 - Si el servidor no responde, el equipo sigue funcionando hasta que caduque la licencia. Una
   revocación surte efecto en la siguiente consulta (menos de una hora si el equipo tiene conexión,
   7 días como mucho si no).
 - La app solo lleva la **clave pública**, así que no puede fabricar licencias, y una licencia
   copiada a otro equipo no sirve.
 
-Administración: `https://renfe.rafitolmg.dev/admin`, que lleva a una pantalla de login. Lista las
-solicitudes y permite aprobar, revocar o borrar. Un equipo revocado no puede volver a pedir acceso;
-uno borrado sí.
+Administración: `https://renfe.rafitolmg.dev/admin`, que lleva a una pantalla de login. Tiene dos
+pestañas:
+
+- **Equipos**: las solicitudes, con un buscador y filtros por estado, para aprobar, revocar o borrar.
+  Un equipo revocado no puede volver a pedir acceso; uno borrado sí. De cada uno muestra la IP y la
+  ubicación aproximada desde la que pidió acceso y desde la que se conectó por última vez, y
+  **Historial** lista sus conexiones de los últimos 90 días. Desde la 2.0.4 la app envía también el
+  nombre del equipo, el usuario, el sistema, el idioma y la zona horaria; el formulario de solicitud
+  lo avisa.
+- **Versiones**: las releases de GitHub. **Publicar** ofrece una a las apps y fija el SHA-256 de
+  cada ejecutable en ese momento, así que un archivo cambiado después en GitHub no se instala.
+  **Retirar** deja de ofrecerla, y la **versión mínima** obliga a actualizar a las anteriores.
+
+La ubicación sale de la base gratuita *IP to City Lite* de [DB-IP](https://db-ip.com), que el
+servidor descarga en su volumen de datos y renueva cada mes: las IPs no se envían a nadie.
 
 - **Contraseña.** La primera vez es la de `ADMIN_PASSWORD`, y la página avisa hasta que la cambias
   con **Cambiar contraseña** (pide la actual y una nueva de al menos 12 caracteres). Desde entonces
@@ -177,6 +226,7 @@ uno borrado sí.
 2. **Nueva aplicación** desde este repositorio público, rama `ubuntu-dev`, *Build Pack* `Dockerfile`,
    *Base Directory* `/activation`, puerto `8000` y dominio `https://renfe.rafitolmg.dev`.
 3. **Volumen persistente** montado en `/data`. Sin él, cada despliegue borra todas las aprobaciones.
+   Guarda también la base de ubicaciones de DB-IP, unos 130 MB.
 4. **Variables de entorno**, ambas como secretas:
    - `ACTIVATION_PRIVATE_KEY`: la clave privada.
    - `ADMIN_PASSWORD`: la contraseña inicial de admin, que conviene cambiar desde la página.
@@ -188,7 +238,9 @@ Las claves se generan con `cd activation && python scripts/generate_keys.py`. La
 todas las licencias emitidas; los equipos aprobados siguen aprobados y reciben una nueva en la
 siguiente consulta, pero solo los `.exe` compilados con la nueva clave pública las aceptan.
 
-Opcionales: `LICENSE_DAYS` (7 por defecto) y `MAX_PENDING` (500 solicitudes pendientes como máximo).
+Opcionales: `LICENSE_DAYS` (7 por defecto), `MAX_PENDING` (500 solicitudes pendientes como máximo),
+`GITHUB_TOKEN` (solo sube el límite de consultas a GitHub de la pestaña Versiones) y
+`GEOIP_ENABLED=0` (no descarga la base de ubicaciones).
 Para probar la app contra un servidor local: `RENFE_ACTIVATION=1` y `RENFE_ACTIVATION_URL=http://…`.
 
 ## Acceso desde el tailnet
@@ -217,8 +269,9 @@ El bot guarda el perfil del navegador, así que **normalmente no inicia sesión*
 sesión anterior y se salta el login, el captcha y la verificación. Solo cuando la sesión caduca
 vuelve a pedirte esos pasos.
 
-Hay **un perfil por cuenta de Renfe**, bajo `backend/browser-profile/<hash del correo>/` (en Windows,
-`%LOCALAPPDATA%\RenfeEnjoyer\browser-profile\`). Compartir
+Hay **un perfil por cuenta de Renfe**, bajo `backend/browser-profile/<hash del correo>/` (en los
+ejecutables, en `browser-profile/` dentro de su carpeta de datos). Borrar un perfil de la app, o
+cambiarle el correo, borra también esa sesión, salvo que otro perfil use la misma cuenta. Compartir
 uno solo haría que el bot buscase con la cuenta que hubiera iniciado sesión la última vez, no con
 la del perfil elegido.
 
@@ -272,7 +325,7 @@ el listado:
 
 ```bash
 curl -X POST http://<host>:8000/api/jobs/current -H 'Content-Type: application/json' \
-     -d '{"user_id": 1, "journey_type": "ida", "date": "01/10/2026", "departure_time": "07:30"}'
+     -d '{"user_id": 1, "journey_type": "ida", "date": "15/01/2027", "departure_time": "07:30"}'
 ```
 
 Las columnas del listado salen tal cual de la tabla de Renfe. Solo la de salida está comprobada; el
@@ -280,14 +333,23 @@ resto no se ha podido ver aún contra la web real.
 
 Puedes detener la búsqueda en cualquier momento; el bucle de recarga es infinito por diseño.
 
-## Desarrollo
+## Comprobaciones
+
+Las mismas que pasa el CI:
 
 ```bash
-cd backend  && .venv/bin/pytest -q && .venv/bin/ruff check . && .venv/bin/mypy
-cd frontend && npm run build
+cd backend    && ../.venv/bin/pytest -q && ../.venv/bin/ruff check . && ../.venv/bin/mypy
+cd frontend   && npm run typecheck && npm run build
+cd activation && .venv/bin/pytest -q && .venv/bin/ruff check . && .venv/bin/mypy   # su propio venv
 ```
 
-## Aviso
+## Contraseñas
 
-Los perfiles guardan las credenciales de Renfe **en claro** en el SQLite local. El fichero está
-en `.gitignore`; aun así, no lo compartas.
+Las contraseñas de Renfe de los perfiles se guardan **cifradas** en el SQLite: el bot necesita
+escribirlas en el login de Renfe, así que no pueden guardarse como hash. La clave está en
+`credentials.key`, junto a la base de datos y fuera de ella; en Windows queda además sellada con
+DPAPI y solo la puede abrir esa cuenta de Windows. Si se pierde la clave, la app sigue funcionando y
+solo pide volver a escribir la contraseña del perfil al buscar.
+
+Protege si alguien obtiene solo el `.db`, pero no frente a un programa que se ejecute con tu propio
+usuario. Tanto el `.db` como `credentials.key` están en `.gitignore`; no los compartas.
