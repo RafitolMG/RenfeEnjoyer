@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 
 
@@ -59,3 +60,58 @@ def test_delete_profile(client: TestClient, profile: dict) -> None:
 def test_unknown_profile_returns_404(client: TestClient) -> None:
     assert client.patch("/api/users/999", json={"abono": "X"}).status_code == 404
     assert client.delete("/api/users/999").status_code == 404
+
+
+def test_renaming_to_an_existing_name_conflicts(
+    client: TestClient, profile: dict
+) -> None:
+    other = client.post(
+        "/api/users",
+        json={
+            "username": "otro",
+            "email": "o@example.com",
+            "password": "x",
+            "abono": "A",
+        },
+    ).json()
+    response = client.patch(f"/api/users/{other['id']}", json={"username": "demo"})
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Ya existe un perfil con ese nombre"
+
+
+def test_keeping_the_same_name_is_not_a_conflict(
+    client: TestClient, profile: dict
+) -> None:
+    response = client.patch(
+        f"/api/users/{profile['id']}", json={"username": "demo", "abono": "NUEVO"}
+    )
+    assert response.status_code == 200
+
+
+@pytest.mark.parametrize("field", ["username", "email", "password", "abono"])
+def test_blank_fields_are_rejected(client: TestClient, field: str) -> None:
+    payload = {"username": "n", "email": "e@example.com", "password": "p", "abono": "A"}
+    payload[field] = "   "
+    assert client.post("/api/users", json=payload).status_code == 422
+
+
+def test_text_fields_are_trimmed(client: TestClient) -> None:
+    created = client.post(
+        "/api/users",
+        json={
+            "username": " n ",
+            "email": " e@example.com ",
+            "password": "p",
+            "abono": " A ",
+        },
+    ).json()
+    assert (created["username"], created["email"], created["abono"]) == (
+        "n",
+        "e@example.com",
+        "A",
+    )
+
+
+def test_blank_rename_is_rejected(client: TestClient, profile: dict) -> None:
+    response = client.patch(f"/api/users/{profile['id']}", json={"username": "  "})
+    assert response.status_code == 422

@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 from app import activation
 from app.activation import ActivationError, Activator, get_activator
 from app.main import app
+from tests.conftest import FUTURE_DATE
 
 MACHINE = "c" * 64
 SERVER_KEY = Ed25519PrivateKey.generate()
@@ -227,7 +228,7 @@ def test_a_search_needs_an_activated_computer(
     app.dependency_overrides[get_activator] = make_activator
     response = client.post(
         "/api/jobs/current",
-        json={"user_id": profile["id"], "journey_type": "ida", "date": "01/10/2026"},
+        json={"user_id": profile["id"], "journey_type": "ida", "date": FUTURE_DATE},
     )
     assert response.status_code == 403
     assert client.get("/api/activation").json()["authorized"] is False

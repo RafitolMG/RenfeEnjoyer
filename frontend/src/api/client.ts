@@ -3,10 +3,16 @@ import type { Activation, JobStatus, Profile, ProfileInput, StartJobInput } from
 export class ApiError extends Error {}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`/api${path}`, {
-    headers: init?.body ? { 'Content-Type': 'application/json' } : undefined,
-    ...init,
-  })
+  let response: Response
+  try {
+    response = await fetch(`/api${path}`, {
+      headers: init?.body ? { 'Content-Type': 'application/json' } : undefined,
+      ...init,
+    })
+  } catch {
+    // fetch only rejects when the server cannot be reached at all.
+    throw new ApiError('Sin conexión con el servidor')
+  }
 
   if (!response.ok) {
     throw new ApiError(await readErrorMessage(response))

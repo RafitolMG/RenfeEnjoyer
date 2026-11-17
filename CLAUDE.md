@@ -191,6 +191,9 @@ Key invariants:
 - **Credentials are stored in plaintext** in the local SQLite file. `UserRead` deliberately omits the
   password so it never reaches the client, and a blank password in `PATCH /api/users/{id}` means "keep the
   stored one". Encryption at rest is still an open task.
+- **Deleting a profile, or changing its email, removes that account's browser profile** (and with it the
+  Renfe session), unless another profile uses the same account: one account can hold several passes. Both
+  return 409 while a search runs, since Chrome holds the directory open.
 - **`JobManager` is a process-wide singleton**, so tests reset it through the autouse `reset_job_manager`
   fixture. Tests that exercise a job monkeypatch `app.bot.runner.run_search(request, reporter, interaction)`
   — never drive the real Renfe site.

@@ -29,6 +29,13 @@ const needsTrain = computed(() => props.status.state === 'awaiting_train')
 const canStop = computed(() => occupiesBrowser(props.status.state))
 const attempts = computed(() => props.status.attempts ?? 0)
 
+// Without the stream the state shown may be stale, so say so instead of repeating it.
+const message = computed(() =>
+  !props.connected && props.status.state !== 'idle'
+    ? 'Sin conexión con el servidor · reconectando…'
+    : props.status.message,
+)
+
 const logLines = computed(() =>
   props.events.map((event, index) => ({
     key: `${event.ts}-${index}`,
@@ -72,7 +79,7 @@ function formatTime(timestamp: string): string {
     </header>
 
     <StatusBadge :state="status.state" />
-    <p class="monitor__message">{{ status.message }}</p>
+    <p class="monitor__message">{{ message }}</p>
 
     <dl v-if="status.search" class="summary">
       <div><dt>Perfil</dt><dd>{{ status.search.username }}</dd></div>

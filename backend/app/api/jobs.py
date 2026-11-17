@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Any
 
 from fastapi import (
@@ -13,7 +14,12 @@ from app.api.deps import SessionDep
 from app.bot.renfe import PromptNotOpen, SearchRequest
 from app.bot.runner import JobConflict, TrainNotListed, job_manager
 from app.db.models import User
-from app.schemas import JobStartRequest, TrainChoice, VerificationCode
+from app.schemas import (
+    JobStartRequest,
+    TrainChoice,
+    VerificationCode,
+    parse_renfe_date,
+)
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
@@ -35,6 +41,10 @@ def start_job(
     user = session.get(User, payload.user_id)
     if user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Perfil no encontrado")
+    if parse_renfe_date(payload.date) < date.today():
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "Esa fecha ya ha pasado"
+        )
 
     request = SearchRequest(
         departure_time=payload.departure_time,

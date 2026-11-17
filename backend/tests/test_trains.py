@@ -7,6 +7,7 @@ from selenium.common.exceptions import TimeoutException
 
 from app.bot import renfe
 from app.bot.events import JobState
+from tests.conftest import FUTURE_DATE
 
 LISTED = [
     renfe.Train(departure="07:30", cells={"Salida": "07:30", "Llegada": "08:45"}),
@@ -242,7 +243,7 @@ def test_a_client_answering_instantly_is_never_turned_away() -> None:
     assert reporter.states == [JobState.AWAITING_TRAIN]
 
 
-SEARCH = {"journey_type": "ida", "date": "01/10/2026"}
+SEARCH = {"journey_type": "ida", "date": FUTURE_DATE}
 
 
 @pytest.fixture

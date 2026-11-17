@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import logging
 import threading
 from collections import deque
@@ -189,7 +190,10 @@ class JobManager:
         loop = self._loop
         if loop is None:
             return
-        loop.call_soon_threadsafe(self._fanout, payload)
+        # The loop closes under a worker still winding down at server shutdown;
+        # nobody is left to receive it then.
+        with contextlib.suppress(RuntimeError):
+            loop.call_soon_threadsafe(self._fanout, payload)
 
     def _fanout(self, payload: dict[str, Any]) -> None:
         for queue in list(self._subscribers):

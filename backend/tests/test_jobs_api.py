@@ -1,4 +1,5 @@
 import threading
+from datetime import date, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -6,6 +7,7 @@ from fastapi.testclient import TestClient
 from app.bot.events import JobState
 from app.bot.renfe import Interaction, SearchRequest, run_search
 from app.bot.runner import JobConflict, JobManager
+from tests.conftest import FUTURE_DATE
 
 
 def test_no_job_is_idle(client: TestClient) -> None:
@@ -19,7 +21,7 @@ def test_start_with_unknown_profile_returns_404(client: TestClient) -> None:
             "user_id": 999,
             "departure_time": "07:30",
             "journey_type": "ida",
-            "date": "01/10/2026",
+            "date": FUTURE_DATE,
         },
     )
     assert response.status_code == 404
@@ -31,6 +33,7 @@ def test_start_with_unknown_profile_returns_404(client: TestClient) -> None:
         ("departure_time", "7h30"),
         ("journey_type", "lateral"),
         ("date", "2026-10-01"),
+        ("date", "31/02/2030"),
     ],
 )
 def test_malformed_search_is_rejected(
@@ -40,10 +43,20 @@ def test_malformed_search_is_rejected(
         "user_id": profile["id"],
         "departure_time": "07:30",
         "journey_type": "ida",
-        "date": "01/10/2026",
+        "date": FUTURE_DATE,
     }
     payload[field] = value
     assert client.post("/api/jobs/current", json=payload).status_code == 422
+
+
+def test_past_date_is_rejected(client: TestClient, profile: dict) -> None:
+    yesterday = (date.today() - timedelta(days=1)).strftime("%d/%m/%Y")
+    response = client.post(
+        "/api/jobs/current",
+        json={"user_id": profile["id"], "journey_type": "ida", "date": yesterday},
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Esa fecha ya ha pasado"
 
 
 def test_stop_without_a_job_conflicts(client: TestClient) -> None:
@@ -68,7 +81,7 @@ def test_invalid_journey_type_fails_before_opening_a_browser() -> None:
     request = SearchRequest(
         departure_time="07:30",
         journey_type="diagonal",
-        date="01/10/2026",
+        date=FUTURE_DATE,
         email="a@b.c",
         password="x",
         abono="ABC",
@@ -114,7 +127,7 @@ def test_progress_streams_over_the_websocket(
                 "user_id": profile["id"],
                 "departure_time": "07:30",
                 "journey_type": "ida",
-                "date": "01/10/2026",
+                "date": FUTURE_DATE,
             },
         )
         assert started.status_code == 202
@@ -155,7 +168,7 @@ def test_second_job_is_rejected_while_one_runs(
         "user_id": profile["id"],
         "departure_time": "07:30",
         "journey_type": "ida",
-        "date": "01/10/2026",
+        "date": FUTURE_DATE,
     }
     assert client.post("/api/jobs/current", json=payload).status_code == 202
     assert started.wait(timeout=5)
@@ -197,7 +210,7 @@ def test_verification_code_reaches_the_waiting_bot(
             "user_id": profile["id"],
             "departure_time": "07:30",
             "journey_type": "ida",
-            "date": "01/10/2026",
+            "date": FUTURE_DATE,
         },
     )
     assert started.status_code == 202
@@ -232,7 +245,7 @@ def test_a_second_code_is_rejected_once_the_first_is_consumed(
             "user_id": profile["id"],
             "departure_time": "07:30",
             "journey_type": "ida",
-            "date": "01/10/2026",
+            "date": FUTURE_DATE,
         },
     )
     assert asked.wait(timeout=5)

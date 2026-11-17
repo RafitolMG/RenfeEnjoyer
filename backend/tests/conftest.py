@@ -1,6 +1,7 @@
 import os
 import tempfile
 from collections.abc import Iterator
+from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
@@ -19,6 +20,9 @@ from sqlmodel.pool import StaticPool  # noqa: E402
 
 from app.db.session import get_session  # noqa: E402
 from app.main import app  # noqa: E402
+
+# Searches for past dates are refused, so the API tests search a month ahead.
+FUTURE_DATE = (date.today() + timedelta(days=30)).strftime("%d/%m/%Y")
 
 
 @pytest.fixture

@@ -24,6 +24,11 @@ const activationLoaded = ref(false)
 // Only the Windows executable requires activation; a checkout never sees this screen.
 const locked = computed(() => !!activation.value?.required && !activation.value.authorized)
 
+// The refusal that locked the app is stale once it is unlocked again.
+watch(locked, (isLocked) => {
+  if (!isLocked) error.value = ''
+})
+
 // Approved, but the last check failed: the stored license is carrying the app for now.
 const activationNotice = computed(() => {
   const value = activation.value
@@ -58,17 +63,56 @@ const sessionLabel = computed(() =>
 
 const busy = computed(() => occupiesBrowser(status.value.state))
 
+const SELECTED_PROFILE_KEY = 'renfe-enjoyer:profile'
+
+function rememberedProfileId(): number | null {
+  try {
+    const stored = Number(localStorage.getItem(SELECTED_PROFILE_KEY))
+    return Number.isInteger(stored) && stored > 0 ? stored : null
+  } catch {
+    return null
+  }
+}
+
+watch(selectedProfileId, (id) => {
+  try {
+    if (id === null) localStorage.removeItem(SELECTED_PROFILE_KEY)
+    else localStorage.setItem(SELECTED_PROFILE_KEY, String(id))
+  } catch {
+    /* storage blocked: the selection just is not remembered */
+  }
+})
+
+/** The profile of the search in progress, so the header talks about the same one. */
+function runningProfileId(): number | null {
+  const username = status.value.search?.username
+  if (!username || !occupiesBrowser(status.value.state)) return null
+  return profiles.value.find((p) => p.username === username)?.id ?? null
+}
+
 async function loadProfiles() {
   try {
     profiles.value = await api.listProfiles()
-    const stillExists = profiles.value.some((p) => p.id === selectedProfileId.value)
-    if (!stillExists) {
-      selectedProfileId.value = profiles.value[0]?.id ?? null
+    const exists = (id: number | null) => profiles.value.some((p) => p.id === id)
+    if (!exists(selectedProfileId.value)) {
+      const remembered = rememberedProfileId()
+      selectedProfileId.value =
+        runningProfileId() ??
+        (exists(remembered) ? remembered : (profiles.value[0]?.id ?? null))
     }
   } catch (cause) {
     error.value = (cause as Error).message
   }
 }
+
+// A search started here or in another tab, or found running on load: follow it.
+watch(
+  () => status.value.search?.username,
+  () => {
+    const running = runningProfileId()
+    if (running !== null) selectedProfileId.value = running
+  },
+)
 
 /** Fire a job action; the resulting state arrives through the job stream. */
 async function run(action: () => Promise<unknown>) {
@@ -156,7 +200,8 @@ onMounted(() => {
       </div>
     </header>
 
-    <p v-if="error" class="error-text banner">{{ error }}</p>
+    <!-- While locked the activation panel already says why. -->
+    <p v-if="error && !locked" class="error-text banner">{{ error }}</p>
 
     <ActivationPanel
       v-if="locked && activation"

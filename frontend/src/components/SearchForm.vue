@@ -18,8 +18,15 @@ const emit = defineEmits<{
 const journeyType = ref<JourneyType>('ida')
 const date = ref('')
 
+// The native picker works in local time, so today is too (toISOString would be UTC).
+const today = (() => {
+  const now = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+})()
+
 const canSubmit = computed(
-  () => !props.busy && props.selectedProfileId !== null && date.value !== '',
+  () => !props.busy && props.selectedProfileId !== null && date.value >= today,
 )
 
 function onSubmit() {
@@ -78,7 +85,7 @@ function toRenfeDate(isoDate: string): string {
 
       <div class="field">
         <label class="field__label" for="date">Fecha</label>
-        <input id="date" v-model="date" class="input" type="date" required />
+        <input id="date" v-model="date" class="input" type="date" :min="today" required />
       </div>
     </div>
 

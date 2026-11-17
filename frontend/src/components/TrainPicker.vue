@@ -4,6 +4,9 @@ import { computed, ref } from 'vue'
 import type { Train } from '@/api/types'
 
 const DEPARTURE_LABEL = 'Salida'
+// Labels the bot writes into the seats column (SEATS_* in app/bot/renfe.py).
+const SEATS_LABEL = 'Plazas'
+const SEATS_FREE = 'Disponible'
 
 const props = defineProps<{ trains: Train[] }>()
 const emit = defineEmits<{ (e: 'choose', departure: string): void }>()
@@ -11,17 +14,16 @@ const emit = defineEmits<{ (e: 'choose', departure: string): void }>()
 const selected = ref<string | null>(null)
 
 // Renfe's columns are not known in advance, so they are taken from the rows themselves.
+// Seats go right after the time: the table is wider than its panel, and whatever is
+// last only shows after scrolling sideways.
 const columns = computed(() => {
-  const labels = new Set<string>([DEPARTURE_LABEL])
+  const labels = new Set<string>()
   for (const train of props.trains) {
     for (const label of Object.keys(train.cells)) labels.add(label)
   }
-  return [...labels]
+  const leading = [DEPARTURE_LABEL, ...(labels.has(SEATS_LABEL) ? [SEATS_LABEL] : [])]
+  return [...leading, ...[...labels].filter((label) => !leading.includes(label))]
 })
-
-// Labels the bot writes into the seats column (SEATS_* in app/bot/renfe.py).
-const SEATS_LABEL = 'Plazas'
-const SEATS_FREE = 'Disponible'
 
 function cellClass(column: string, value: string | undefined) {
   if (column === DEPARTURE_LABEL) return 'picker__time'

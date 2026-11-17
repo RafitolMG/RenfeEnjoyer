@@ -35,13 +35,26 @@ function openEdit(profile: Profile) {
 }
 
 async function save() {
+  const input = {
+    username: form.username.trim(),
+    email: form.email.trim(),
+    abono: form.abono.trim(),
+    // Sent as typed; only a blank one is caught here.
+    password: form.password,
+  }
+  const passwordMissing = !editing.value && !input.password.trim()
+  if (!input.username || !input.email || !input.abono || passwordMissing) {
+    error.value = 'Rellena todos los campos.'
+    return
+  }
+
   saving.value = true
   error.value = ''
   try {
     if (editing.value) {
-      await api.updateProfile(editing.value.id, { ...form })
+      await api.updateProfile(editing.value.id, input)
     } else {
-      await api.createProfile({ ...form })
+      await api.createProfile(input)
     }
     emit('changed')
     mode.value = 'list'
