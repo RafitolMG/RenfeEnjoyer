@@ -16,6 +16,11 @@
   .filters button { border: 1px solid var(--border); background: var(--surface); color: var(--text);
                     border-radius: 4px; padding: 6px 14px; font: inherit; cursor: pointer; }
   .filters button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .filters .count { color: var(--muted); font-weight: 400; }
+  .search { width: 100%; margin-bottom: 12px; padding: 9px 12px; font: inherit; color: inherit;
+            background: var(--surface); border: 1px solid var(--border-strong); border-radius: 5px; }
+  .search:focus { outline: none; border-color: var(--accent);
+                  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
   .list { display: grid; gap: 10px; }
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
           padding: 14px 16px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; }
@@ -99,11 +104,13 @@
     <button role="tab" data-view="versions" aria-selected="false">Versiones</button>
   </div>
   <section id="machines-view">
+  <input id="search" class="search" type="search" autocomplete="off" aria-label="Buscar equipos"
+         placeholder="Buscar por nombre, correo, equipo, usuario, IP o ciudad">
   <div class="filters" role="group" aria-label="Filtrar">
-    <button data-filter="pending" aria-pressed="true">Pendientes</button>
-    <button data-filter="approved" aria-pressed="false">Aprobados</button>
-    <button data-filter="revoked" aria-pressed="false">Revocados</button>
-    <button data-filter="all" aria-pressed="false">Todos</button>
+    <button data-filter="pending" aria-pressed="true">Pendientes <span class="count"></span></button>
+    <button data-filter="approved" aria-pressed="false">Aprobados <span class="count"></span></button>
+    <button data-filter="revoked" aria-pressed="false">Revocados <span class="count"></span></button>
+    <button data-filter="all" aria-pressed="false">Todos <span class="count"></span></button>
   </div>
   <div id="list" class="list" aria-live="polite"></div>
   </section>
@@ -157,6 +164,16 @@
   const LABELS = { pending: 'Pendiente', approved: 'Aprobado', revoked: 'Revocado' };
   let machines = [];
   let filter = 'pending';
+  let query = [];
+  // Case- and accent-insensitive: "jose" finds "José".
+  const fold = (text) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const SEARCHED = ['name', 'contact', 'machine_id', 'hostname', 'os_user', 'os_name', 'locale',
+    'request_ip', 'last_ip', 'request_location', 'last_location', 'app_version'];
+  function matches(m) {
+    if (!query.length) return true;
+    const haystack = fold(SEARCHED.map((key) => m[key] ?? '').join(' '));
+    return query.every((word) => haystack.includes(word));
+  }
 
   const when = (iso) => iso
     ? new Date(iso.endsWith('Z') || iso.includes('+') ? iso : iso + 'Z')
@@ -173,7 +190,13 @@
   function render() {
     const list = document.getElementById('list');
     list.replaceChildren();
-    const shown = machines.filter((m) => filter === 'all' || m.status === filter);
+    const found = machines.filter(matches);
+    for (const b of document.querySelectorAll('[data-filter]')) {
+      const value = b.dataset.filter;
+      const count = found.filter((m) => value === 'all' || m.status === value).length;
+      b.querySelector('.count').textContent = count ? `(${count})` : '';
+    }
+    const shown = found.filter((m) => filter === 'all' || m.status === filter);
     if (!shown.length) {
       list.append(el('p', { className: 'empty' }, 'Ninguno.'));
       return;
@@ -433,6 +456,10 @@
       if (tab.dataset.view === 'versions') loadVersions();
     });
   }
+  document.getElementById('search').addEventListener('input', (event) => {
+    query = fold(event.target.value).split(/\s+/).filter(Boolean);
+    render();
+  });
   for (const b of document.querySelectorAll('[data-filter]')) {
     b.addEventListener('click', () => {
       filter = b.dataset.filter;
