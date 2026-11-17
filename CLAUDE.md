@@ -53,6 +53,13 @@ it as the `RenfeEnjoyer-windows` artifact. **Linux ships the same way since 2.0.
 spec on `ubuntu-22.04` (PyInstaller bundles everything but glibc, so building on a newer runner would refuse to
 start on older distributions), smoke-tests it and uploads `RenfeEnjoyer-linux`. Frozen on Linux, `DATA_DIR` is
 `$XDG_DATA_HOME/RenfeEnjoyer` (`~/.local/share`), and the binary is run from a terminal, whose Ctrl+C stops it.
+**On Linux the bundle's `LD_LIBRARY_PATH` must not reach child processes**: PyInstaller points it at the bundled
+22.04 libraries, and on Arch even `/bin/sh` then dies (`undefined symbol: rl_trim_arg_from_keyseq`), so 2.0.5
+could not open the browser. `config.system_environment()` strips it from `os.environ` at import when frozen; the
+running process is unaffected because the loader reads it only at startup. `RenfeEnjoyer --check-browser`
+starts the bot's driver headless and loads a page; both CI jobs run it, and the `linux` job also runs
+`packaging/check-linux-binary.sh` in Arch, Fedora, Debian and Ubuntu containers with the binary mounted
+read-only (the updater's start-up tidying once crashed the app there; `updater._remove` now never raises).
 A pushed `v*` tag runs the `release` job once both builds pass: it checks the tag against `APP_VERSION` and
 publishes both files as one GitHub release (`gh release create … --latest`). The landing page
 (`activation/app/index.html`) links to `releases/latest/download/<asset>` and the activation server finds builds

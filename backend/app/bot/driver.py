@@ -60,7 +60,9 @@ def session_verified_at(profile_dir: Path) -> str | None:
         return None
 
 
-def build_chrome_driver(profile_dir: Path) -> webdriver.Chrome:
+def build_chrome_driver(
+    profile_dir: Path, headless: bool | None = None
+) -> webdriver.Chrome:
     """Build a Chrome/Chromium driver that works on both Windows and Linux.
 
     Linux distros ship the browser as `chromium` rather than `google-chrome`, which is
@@ -79,7 +81,7 @@ def build_chrome_driver(profile_dir: Path) -> webdriver.Chrome:
             break
 
     # Headless is opt-in only: the user finishes the purchase by hand in this window.
-    if HEADLESS:
+    if HEADLESS if headless is None else headless:
         options.add_argument("--headless=new")
 
     # Without a system chromedriver, a None path lets Selenium Manager fetch one.

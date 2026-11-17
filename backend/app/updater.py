@@ -129,7 +129,7 @@ class Updater:
 
     def _resume(self) -> None:
         """Tidy up after an earlier run and keep a download it had already checked."""
-        self._path(".part").unlink(missing_ok=True)
+        _remove(self._path(".part"))
         threading.Thread(target=self._remove_old, daemon=True).start()
         staged, marker = self._path(".new"), self._path(".new.json")
         try:
@@ -146,8 +146,8 @@ class Updater:
                 return
         except (OSError, ValueError, KeyError, TypeError):
             pass
-        staged.unlink(missing_ok=True)
-        marker.unlink(missing_ok=True)
+        _remove(staged)
+        _remove(marker)
 
     def _remove_old(self) -> None:
         # After a handover the previous process holds `.old` until it notices and exits.
@@ -160,9 +160,8 @@ class Updater:
                 time.sleep(1)
 
     def _discard_staged(self) -> None:
-        self._path(".new").unlink(missing_ok=True)
-        self._path(".new.json").unlink(missing_ok=True)
-        self._path(".part").unlink(missing_ok=True)
+        for suffix in (".new", ".new.json", ".part"):
+            _remove(self._path(suffix))
 
     # --- offers ------------------------------------------------------------------------
 
@@ -344,6 +343,19 @@ class Updater:
 
 class _Superseded(Exception):
     """A newer offer, or a withdrawal, arrived while downloading."""
+
+
+def _remove(path: Path) -> None:
+    """Delete a leftover if possible; never let tidying up stop the app.
+
+    The executable may sit in a folder the user cannot write to (/usr/local/bin,
+    Program Files, a read-only mount), where even removing a file that is not there
+    fails. Updates then fall back to a manual download.
+    """
+    try:
+        path.unlink(missing_ok=True)
+    except OSError as exc:
+        logger.info("Could not remove %s: %s", path, exc)
 
 
 def _sha256(path: Path) -> str:

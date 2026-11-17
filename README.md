@@ -116,6 +116,10 @@ Fedora 36…). No hace falta cuenta de GitHub.
 Si ya estaba abierta, lanzarla otra vez solo vuelve a abrir el navegador. Si el puerto 8000 está
 ocupado, elige otro con la variable `RENFE_PORT`.
 
+Si las búsquedas no consiguen abrir el navegador, `RenfeEnjoyer.exe --check-browser` (o
+`./RenfeEnjoyer-linux --check-browser`) lo abre sin ventana, carga una página de prueba y dice si
+funciona o por qué no.
+
 Diferencias con la versión desde el código:
 
 - **Solo se puede usar desde el propio equipo.** Escucha en `127.0.0.1`, no en Tailscale ni en la

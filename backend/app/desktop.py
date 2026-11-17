@@ -14,11 +14,13 @@ one never answers, serves again as before.
 import json
 import os
 import sys
+import tempfile
 import threading
 import time
 import traceback
 import urllib.request
 import webbrowser
+from pathlib import Path
 from types import FrameType
 
 import uvicorn
@@ -121,7 +123,35 @@ def main() -> int:
     return code
 
 
+def check_browser() -> int:
+    """Start the bot's browser out of sight and load a page: `--check-browser`.
+
+    Goes through the same driver the searches use, so a bundle that cannot start the
+    browser (a missing hidden import, libraries leaking into it) fails here, in CI or
+    on a user's computer, instead of at the first search.
+    """
+    from app.bot.driver import build_chrome_driver
+
+    with tempfile.TemporaryDirectory(prefix="renfe-check-") as profile:
+        try:
+            driver = build_chrome_driver(Path(profile), headless=True)
+            try:
+                driver.get("data:text/html,<title>renfe-ok</title>")
+                if driver.title != "renfe-ok":
+                    raise RuntimeError(f"la página de prueba no cargó ({driver.title!r})")
+                version = driver.capabilities.get("browserVersion", "?")
+            finally:
+                driver.quit()
+        except Exception as exc:
+            print(f"El navegador no funciona: {exc}", file=sys.stderr, flush=True)
+            return 1
+    print(f"Navegador OK: {version}", flush=True)
+    return 0
+
+
 def run() -> None:
+    if "--check-browser" in sys.argv:
+        sys.exit(check_browser())
     try:
         code = main()
     except Exception:

@@ -163,6 +163,21 @@ def test_a_read_only_folder_falls_back_to_a_manual_download(
         exe.parent.chmod(0o755)
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32" or os.geteuid() == 0, reason="POSIX permissions"
+)
+def test_a_read_only_folder_never_stops_the_app(exe: Path) -> None:
+    """Removing leftovers fails there (EACCES; EROFS even for missing ones)."""
+    exe.with_name("RenfeEnjoyer.exe.part").write_bytes(b"leftover")
+    exe.parent.chmod(0o555)
+    try:
+        updater = Updater(exe, current="2.0.0")
+        assert updater.state()["state"] == "none"
+        updater.offer(None)
+    finally:
+        exe.parent.chmod(0o755)
+
+
 def test_a_minimum_above_this_version_is_required(
     exe: Path, download_server: str
 ) -> None:

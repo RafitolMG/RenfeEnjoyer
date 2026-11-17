@@ -8,6 +8,31 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # directory that is deleted on exit, so the user's data has to live somewhere else.
 FROZEN = getattr(sys, "frozen", False)
 
+
+def system_environment(environ: dict[str, str]) -> dict[str, str]:
+    """The environment without the library path PyInstaller sets for its bundle.
+
+    On Linux the bundle points LD_LIBRARY_PATH at its own libraries, built on an older
+    distribution, and every program the app starts inherits it: the browser, Chromium,
+    even /bin/sh, which on Arch then loads the bundle's old libreadline and dies. The
+    path the user had, if any, is kept by PyInstaller in LD_LIBRARY_PATH_ORIG.
+    """
+    env = dict(environ)
+    original = env.pop("LD_LIBRARY_PATH_ORIG", None)
+    if original:
+        env["LD_LIBRARY_PATH"] = original
+    else:
+        env.pop("LD_LIBRARY_PATH", None)
+    return env
+
+
+if FROZEN and sys.platform.startswith("linux"):
+    # The loader reads LD_LIBRARY_PATH only at startup, so this process keeps finding its
+    # bundled libraries; only the programs it starts from now on see the system's.
+    _cleaned = system_environment(dict(os.environ))
+    os.environ.clear()
+    os.environ.update(_cleaned)
+
 if FROZEN:
     _BUNDLE_DIR = Path(getattr(sys, "_MEIPASS", BASE_DIR))
     if sys.platform == "win32":

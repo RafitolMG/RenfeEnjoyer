@@ -51,3 +51,24 @@ def test_a_busy_port_is_reported_instead_of_crashing(
     assert desktop.main() == 1
     assert "RENFE_PORT" in capsys.readouterr().err
     assert opened == []
+
+
+def test_programs_started_by_the_bundle_get_the_system_libraries() -> None:
+    from app.config import system_environment
+
+    bundled = {"LD_LIBRARY_PATH": "/tmp/_MEI123", "PATH": "/usr/bin"}
+    assert system_environment(bundled) == {"PATH": "/usr/bin"}
+    kept = {"LD_LIBRARY_PATH": "/tmp/_MEI123", "LD_LIBRARY_PATH_ORIG": "/opt/lib"}
+    assert system_environment(kept) == {"LD_LIBRARY_PATH": "/opt/lib"}
+    assert system_environment({"PATH": "/usr/bin"}) == {"PATH": "/usr/bin"}
+
+
+def test_the_browser_check_reports_a_browser_that_will_not_start(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def broken(profile_dir: object, headless: bool | None = None) -> None:
+        raise RuntimeError("chrome exploded")
+
+    monkeypatch.setattr("app.bot.driver.build_chrome_driver", broken)
+    assert desktop.check_browser() == 1
+    assert "chrome exploded" in capsys.readouterr().err

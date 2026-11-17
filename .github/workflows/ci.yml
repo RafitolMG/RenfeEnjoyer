@@ -117,6 +117,8 @@ jobs:
           } finally {
             Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue
           }
+      - name: The bot's browser starts
+        run: dist\RenfeEnjoyer.exe --check-browser
       # The real thing on Windows: a running onefile executable renamed under itself, a
       # new instance in its own console, and the rollback when the new one fails.
       - name: Build an older executable to update from
@@ -235,6 +237,41 @@ jobs:
             python3 -c "import json, sys; a = json.load(sys.stdin); assert a['required'] and not a['authorized'], a"
           test -f "$XDG_DATA_HOME/RenfeEnjoyer/renfe_enjoyer.db" ||
             { echo 'No creó la base de datos en $XDG_DATA_HOME/RenfeEnjoyer'; exit 1; }
+      # PyInstaller points LD_LIBRARY_PATH at the bundle; programs the app starts must not
+      # inherit it, or a newer distribution's /bin/sh breaks on the bundle's libraries
+      # (2.0.5 could not open the browser on Arch). This runner has the same libraries as
+      # the bundle, so check the variable itself; the containers below check the effect.
+      - name: Programs it starts get the system's libraries
+        env:
+          XDG_DATA_HOME: ${{ runner.temp }}/data-env
+          RENFE_PORT: '8766'
+          RENFE_ACTIVATION_URL: http://127.0.0.1:9
+        run: |
+          printf '#!/bin/sh\nenv > "%s/browser-env"\n' "$RUNNER_TEMP" > "$RUNNER_TEMP/browser"
+          chmod +x "$RUNNER_TEMP/browser"
+          BROWSER="$RUNNER_TEMP/browser" dist/RenfeEnjoyer-linux > app.log 2>&1 &
+          pid=$!
+          trap 'kill $pid 2>/dev/null || true' EXIT
+          for i in $(seq 120); do [ -f "$RUNNER_TEMP/browser-env" ] && break; sleep 0.5; done
+          test -f "$RUNNER_TEMP/browser-env" || { cat app.log; echo 'No abrió el navegador'; exit 1; }
+          if grep -q '^LD_LIBRARY_PATH=.*_MEI' "$RUNNER_TEMP/browser-env"; then
+            echo 'El navegador hereda las librerías del paquete'
+            exit 1
+          fi
+      - name: The bot's browser starts
+        run: dist/RenfeEnjoyer-linux --check-browser
+      - name: Runs on other distributions, from a read-only folder
+        run: |
+          for image in archlinux:latest fedora:latest debian:12 ubuntu:24.04; do
+            echo "== $image"
+            docker run --rm -v "$PWD/dist/RenfeEnjoyer-linux:/app/RenfeEnjoyer:ro" \
+              -v "$PWD/packaging:/t:ro" "$image" bash /t/check-linux-binary.sh
+          done
+      - name: Starts Chromium on Arch
+        run: |
+          docker run --rm --security-opt seccomp=unconfined --shm-size=1g \
+            -v "$PWD/dist/RenfeEnjoyer-linux:/app/RenfeEnjoyer:ro" \
+            -v "$PWD/packaging:/t:ro" archlinux:latest bash /t/check-linux-binary.sh --browser
       - uses: actions/upload-artifact@v7
         with:
           name: RenfeEnjoyer-linux
