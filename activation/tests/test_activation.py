@@ -36,11 +36,11 @@ def decide(client: TestClient, action: str, machine: str = MACHINE) -> None:
 
 
 def test_an_unknown_computer_gets_no_license(client: TestClient) -> None:
-    assert check(client) == {"status": "unknown", "license": None}
+    assert check(client) == {"status": "unknown", "license": None, "update": None}
 
 
 def test_a_request_waits_for_the_admin(client: TestClient) -> None:
-    assert ask(client) == {"status": "pending", "license": None}
+    assert ask(client) == {"status": "pending", "license": None, "update": None}
     assert check(client)["status"] == "pending"
 
 
@@ -64,7 +64,7 @@ def test_approving_one_computer_does_not_approve_another(admin: TestClient) -> N
     ask(client)
     ask(client, OTHER)
     decide(client, "approve")
-    assert check(client, OTHER) == {"status": "pending", "license": None}
+    assert check(client, OTHER) == {"status": "pending", "license": None, "update": None}
 
 
 def test_a_revoked_computer_loses_its_license(admin: TestClient) -> None:
@@ -72,7 +72,7 @@ def test_a_revoked_computer_loses_its_license(admin: TestClient) -> None:
     ask(client)
     decide(client, "approve")
     decide(client, "revoke")
-    assert check(client) == {"status": "revoked", "license": None}
+    assert check(client) == {"status": "revoked", "license": None, "update": None}
 
 
 def test_asking_again_cannot_undo_a_revocation(admin: TestClient) -> None:

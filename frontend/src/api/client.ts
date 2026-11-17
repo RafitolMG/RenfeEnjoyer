@@ -1,4 +1,11 @@
-import type { Activation, JobStatus, Profile, ProfileInput, StartJobInput } from './types'
+import type {
+  Activation,
+  JobStatus,
+  Profile,
+  ProfileInput,
+  StartJobInput,
+  UpdateStatus,
+} from './types'
 
 export class ApiError extends Error {}
 
@@ -42,6 +49,12 @@ export const api = {
     }),
 
   refreshActivation: () => request<Activation>('/activation/refresh', { method: 'POST' }),
+
+  getUpdate: () => request<UpdateStatus>('/update'),
+
+  applyUpdate: () => request<UpdateStatus>('/update', { method: 'POST' }),
+
+  getVersion: () => request<{ status: string; version: string }>('/health'),
 
   listProfiles: () => request<Profile[]>('/users'),
 

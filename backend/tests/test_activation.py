@@ -232,3 +232,60 @@ def test_a_search_needs_an_activated_computer(
     )
     assert response.status_code == 403
     assert client.get("/api/activation").json()["authorized"] is False
+
+
+def signed_update(key: Ed25519PrivateKey = SERVER_KEY, **changes: Any) -> dict[str, str]:
+    claims = {
+        "kind": "update",
+        "version": "2.1.0",
+        "url": "https://github.com/o/r/releases/download/v2.1.0/RenfeEnjoyer.exe",
+        "sha256": "AB" * 32,
+        "size": 123,
+        "min_version": None,
+        **changes,
+    }
+    payload = json.dumps(claims).encode()
+    return {"payload": b64(payload), "signature": b64(key.sign(payload))}
+
+
+def test_a_signed_update_offer_is_handed_on(
+    make_activator: Callable[..., Activator], server: FakeServer
+) -> None:
+    server.approves()
+    server.answer["update"] = signed_update(min_version="2.0.0")
+    activator = make_activator()
+    offers: list = []
+    activator.on_update = offers.append
+    activator.refresh(force=True)
+    assert offers == [
+        activation.UpdateOffer(
+            version="2.1.0",
+            url="https://github.com/o/r/releases/download/v2.1.0/RenfeEnjoyer.exe",
+            sha256="ab" * 32,
+            size=123,
+            min_version="2.0.0",
+        )
+    ]
+
+
+@pytest.mark.parametrize(
+    "offer",
+    [
+        signed_update(key=Ed25519PrivateKey.generate()),
+        signed_update(kind="license"),
+        # A license is signed by the same key but must never pass for an update.
+        signed_license(),
+    ],
+)
+def test_an_offer_the_server_did_not_sign_as_an_update_is_ignored(
+    make_activator: Callable[..., Activator], server: FakeServer, offer: dict
+) -> None:
+    server.approves()
+    server.answer["update"] = offer
+    activator = make_activator()
+    offers: list = []
+    activator.on_update = offers.append
+    activator.refresh(force=True)
+    assert offers == [None]
+    # The license that came with it still counts.
+    assert activator.is_authorized()

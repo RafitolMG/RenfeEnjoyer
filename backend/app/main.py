@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api import activation, jobs, session, users
+from app.api import activation, jobs, session, update, users
 from app.bot.runner import job_manager
 from app.config import APP_VERSION, CORS_ORIGINS, FRONTEND_DIST
 from app.db.session import init_db
@@ -37,11 +37,13 @@ app.include_router(users.router)
 app.include_router(jobs.router)
 app.include_router(session.router)
 app.include_router(activation.router)
+app.include_router(update.router)
 
 
 @app.get("/api/health")
 def health() -> dict[str, str]:
-    return {"status": "ok"}
+    # The version tells the SPA, and an update handover, which build answers.
+    return {"status": "ok", "version": APP_VERSION}
 
 
 # Mounted last so the API routes above take precedence over the catch-all.

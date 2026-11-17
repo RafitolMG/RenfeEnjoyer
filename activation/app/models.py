@@ -45,3 +45,21 @@ class AdminSession(SQLModel, table=True):
     token_hash: str = Field(primary_key=True)
     created_at: datetime = Field(default_factory=utcnow)
     expires_at: datetime
+
+
+class PublishedRelease(SQLModel, table=True):
+    """A version the admin has released to the apps (see app/releases.py)."""
+
+    id: int | None = Field(default=None, primary_key=True)
+    version: str = Field(index=True, unique=True)
+    url: str
+    # Pinned when publishing: a file replaced on GitHub afterwards is refused by the app.
+    sha256: str
+    size: int
+    published_at: datetime = Field(default_factory=utcnow)
+
+
+class UpdatePolicy(SQLModel, table=True):
+    id: int = Field(default=1, primary_key=True)
+    # Below it the app refuses to search until it updates.
+    min_version: str | None = None

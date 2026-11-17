@@ -11,6 +11,7 @@ from fastapi import (
 
 from app.api.activation import ActivatorDep
 from app.api.deps import SessionDep
+from app.api.update import UpdaterDep
 from app.bot.renfe import PromptNotOpen, SearchRequest
 from app.bot.runner import JobConflict, TrainNotListed, job_manager
 from app.db.models import User
@@ -31,12 +32,20 @@ def get_current_job() -> dict[str, Any]:
 
 @router.post("/current", status_code=status.HTTP_202_ACCEPTED)
 def start_job(
-    payload: JobStartRequest, session: SessionDep, activator: ActivatorDep
+    payload: JobStartRequest,
+    session: SessionDep,
+    activator: ActivatorDep,
+    updater: UpdaterDep,
 ) -> dict[str, Any]:
     if not activator.is_authorized():
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,
             "Este equipo no está activado: solicita acceso en la pantalla de activación.",
+        )
+    if updater.required():
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Esta versión ya no funciona con Renfe: actualiza para seguir buscando.",
         )
     user = session.get(User, payload.user_id)
     if user is None:
@@ -121,8 +130,10 @@ async def stream_job(websocket: WebSocket) -> None:
                 "events": job_manager.history(),
             }
         )
-        while True:
-            await websocket.send_json(await queue.get())
+        while (message := await queue.get()) is not None:
+            await websocket.send_json(message)
+        # The server is stopping for an update: the client reconnects to the new one.
+        await websocket.close(code=status.WS_1012_SERVICE_RESTART)
     except WebSocketDisconnect:
         pass
     finally:

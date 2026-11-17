@@ -72,6 +72,21 @@ over https via the proxy headers). `ADMIN_PASSWORD` is only the initial password
 variable. This is a deterrent, not protection: the source is public and GPL, so it guards the distributed
 executable only. Changing the key pair means rebuilding the `.exe`.
 
+**The executable updates itself, but only to versions the admin publishes.** CI turns a `v*` tag into a
+GitHub release (and fails if the tag is not `v` + `APP_VERSION`); nothing reaches the apps until the admin's
+"Versiones" tab publishes it (`activation/app/releases.py`). Publishing pins the SHA-256 GitHub reports for the
+asset (`digest`) and every `/api/v1/check` answer carries the newest published version signed with the license
+key, with `"kind": "update"` so neither can pass for the other; revoked computers get none. The admin can set a
+published version as minimum, below which `POST /api/jobs/current` returns 403. On the desktop side
+`app/updater.py` downloads to `<exe>.new`, checks hash and size, records `<exe>.new.json` (so a finished download
+survives a restart), and the SPA's `UpdateBanner` offers "Actualizar" while no search runs. The handover lives in
+`app.desktop`: the server stops (closing job streams first, or the graceful shutdown waits on them), the running
+`.exe` is renamed to `.old` — Windows allows renaming a running executable, not overwriting it — the new one starts
+with `--after-update` and `PYINSTALLER_RESET_ENVIRONMENT=1` (otherwise a onefile child reuses its parent's unpacked
+files, deleted when the parent exits), and the old process exits once `/api/health` reports the new version. If
+it never does within `HANDOVER_TIMEOUT`, the old one undoes the swap and serves again. A checkout never updates
+(`git pull`). The Windows CI job exercises the real handover and rollback with a second build patched to 0.0.1.
+
 ```bash
 cd backend  && ../.venv/bin/pytest -q            # single test: pytest tests/test_jobs_api.py::test_name
 cd backend  && ../.venv/bin/ruff check . && ../.venv/bin/ruff format --check . && ../.venv/bin/mypy

@@ -257,3 +257,14 @@ def test_a_second_code_is_rejected_once_the_first_is_consumed(
     assert (
         client.post("/api/jobs/current/code", json={"code": "222222"}).status_code == 409
     )
+
+
+def test_streams_close_when_the_server_stops_for_an_update(client: TestClient) -> None:
+    from app.bot.runner import job_manager
+
+    with client.websocket_connect("/api/jobs/stream") as websocket:
+        assert websocket.receive_json()["type"] == "snapshot"
+        job_manager.close_streams()
+        message = websocket.receive()
+    assert message["type"] == "websocket.close"
+    assert message["code"] == 1012

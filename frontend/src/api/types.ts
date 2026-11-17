@@ -82,3 +82,16 @@ export interface Activation {
   expires_at: string | null
   machine_code: string
 }
+
+/** Self-update of the Windows executable; a checkout reports `supported: false`. */
+export interface UpdateStatus {
+  current: string
+  supported: boolean
+  state: 'none' | 'downloading' | 'ready' | 'applying' | 'failed' | 'manual'
+  version: string | null
+  progress: number
+  error: string | null
+  /** This version is below the minimum the server requires. */
+  required: boolean
+  download_url: string | null
+}

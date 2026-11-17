@@ -44,7 +44,7 @@ class JobManager:
     def __init__(self) -> None:
         self._lock = threading.RLock()
         self._loop: asyncio.AbstractEventLoop | None = None
-        self._subscribers: set[asyncio.Queue[dict[str, Any]]] = set()
+        self._subscribers: set[asyncio.Queue[dict[str, Any] | None]] = set()
         self._history: deque[dict[str, Any]] = deque(maxlen=HISTORY_LIMIT)
         self._job: dict[str, Any] | None = None
         self._interaction = Interaction()
@@ -134,12 +134,12 @@ class JobManager:
     def history(self) -> list[dict[str, Any]]:
         return list(self._history)
 
-    def subscribe(self) -> asyncio.Queue[dict[str, Any]]:
-        queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+    def subscribe(self) -> asyncio.Queue[dict[str, Any] | None]:
+        queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
         self._subscribers.add(queue)
         return queue
 
-    def unsubscribe(self, queue: asyncio.Queue[dict[str, Any]]) -> None:
+    def unsubscribe(self, queue: asyncio.Queue[dict[str, Any] | None]) -> None:
         self._subscribers.discard(queue)
 
     def _run(self, request: SearchRequest, interaction: Interaction) -> None:
@@ -195,7 +195,15 @@ class JobManager:
         with contextlib.suppress(RuntimeError):
             loop.call_soon_threadsafe(self._fanout, payload)
 
-    def _fanout(self, payload: dict[str, Any]) -> None:
+    def close_streams(self) -> None:
+        """Ask every job stream to close, so the server stops without waiting on them."""
+        loop = self._loop
+        if loop is None:
+            return
+        with contextlib.suppress(RuntimeError):
+            loop.call_soon_threadsafe(self._fanout, None)
+
+    def _fanout(self, payload: dict[str, Any] | None) -> None:
         for queue in list(self._subscribers):
             queue.put_nowait(payload)
 

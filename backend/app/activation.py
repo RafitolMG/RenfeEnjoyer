@@ -20,6 +20,7 @@ import time
 import urllib.error
 import urllib.request
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -88,6 +89,18 @@ class License:
     expires_at: datetime
 
 
+@dataclass(frozen=True)
+class UpdateOffer:
+    """The newest version the admin has published, as the server signed it."""
+
+    version: str
+    url: str
+    sha256: str
+    size: int
+    # Below it the app must update before it searches again.
+    min_version: str | None
+
+
 class Activator:
     def __init__(
         self,
@@ -108,6 +121,9 @@ class Activator:
         # Monotonic, so changing the computer's clock cannot postpone the next check.
         self._checked_at: float | None = None
         self._error: str | None = None
+        self.update: UpdateOffer | None = None
+        # Told about every verified answer's offer (app/updater.py).
+        self.on_update: Callable[[UpdateOffer | None], None] | None = None
 
     # --- license on disk --------------------------------------------------------------
 
@@ -126,6 +142,28 @@ class Activator:
         if parsed.machine_id != self.machine:
             raise ActivationError("La licencia es de otro equipo")
         return parsed
+
+    def verify_update(self, signed: dict[str, Any]) -> UpdateOffer:
+        """Check an update offer is the server's; raise otherwise."""
+        try:
+            payload = _b64decode(signed["payload"])
+            self.public_key.verify(_b64decode(signed["signature"]), payload)
+            claims = json.loads(payload)
+            # The same key signs licenses; only an update says it is one.
+            if claims.get("kind") != "update":
+                raise ValueError("not an update")
+            min_version = claims.get("min_version")
+            return UpdateOffer(
+                version=str(claims["version"]),
+                url=str(claims["url"]),
+                sha256=str(claims["sha256"]).lower(),
+                size=int(claims["size"]),
+                min_version=None if min_version is None else str(min_version),
+            )
+        except (InvalidSignature, KeyError, TypeError, ValueError) as exc:
+            raise ActivationError(
+                "La actualización no está firmada por el servidor"
+            ) from exc
 
     def stored_license(self) -> License | None:
         """The saved license, if it is genuine, for this computer and still current."""
@@ -181,6 +219,17 @@ class Activator:
         self._status = status
         self._checked_at = time.monotonic()
         self._error = None
+        self._apply_update(answer.get("update"))
+
+    def _apply_update(self, signed: Any) -> None:
+        # A bad offer must not cost the license that came with it.
+        try:
+            self.update = self.verify_update(signed) if signed else None
+        except ActivationError as exc:
+            logger.warning("Activation: %s", exc)
+            self.update = None
+        if self.on_update is not None:
+            self.on_update(self.update)
 
     def _exchange(self, path: str, body: dict[str, Any]) -> None:
         try:

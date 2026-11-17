@@ -58,6 +58,14 @@
   .primary:disabled { opacity: 0.55; cursor: progress; }
   .form-message { font-size: 14px; margin: 0 0 12px; min-height: 1.45em; }
   .form-message.bad { color: var(--danger); } .form-message.good { color: var(--ok); }
+  .tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
+  .tabs button { font: inherit; font-size: 14px; padding: 8px 14px; border: 0; background: none;
+                 color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tabs button[aria-selected="true"] { color: var(--text); font-weight: 600; border-bottom-color: var(--accent); }
+  .policy { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; font-size: 14px; }
+  .policy select { font: inherit; padding: 6px 10px; color: inherit; background: var(--surface);
+                   border: 1px solid var(--border-strong); border-radius: 5px; }
+  .published { color: var(--ok); } .unpublished { color: var(--muted); }
 </style>
 </head>
 <body>
@@ -75,6 +83,11 @@
     Sigues con la contraseña inicial.
     <button type="button" data-open-password>Cámbiala</button>
   </p>
+  <div class="tabs" role="tablist">
+    <button role="tab" data-view="machines" aria-selected="true">Equipos</button>
+    <button role="tab" data-view="versions" aria-selected="false">Versiones</button>
+  </div>
+  <section id="machines-view">
   <div class="filters" role="group" aria-label="Filtrar">
     <button data-filter="pending" aria-pressed="true">Pendientes</button>
     <button data-filter="approved" aria-pressed="false">Aprobados</button>
@@ -82,6 +95,14 @@
     <button data-filter="all" aria-pressed="false">Todos</button>
   </div>
   <div id="list" class="list" aria-live="polite"></div>
+  </section>
+  <section id="versions-view" hidden>
+    <div class="policy">
+      <label for="min-version">Versión mínima</label>
+      <select id="min-version"></select>
+    </div>
+    <div id="versions" class="list" aria-live="polite"></div>
+  </section>
 </main>
 
 <dialog id="password-dialog" aria-labelledby="password-title">
@@ -260,6 +281,84 @@
     load();
   }
 
+  // --- versions ----------------------------------------------------------------------
+  let releases = { github: [], published: [], min_version: null, github_error: null };
+  const byVersion = (a, b) => {
+    const pa = a.version.split('.').map(Number), pb = b.version.split('.').map(Number);
+    for (let i = 0; i < 3; i++) if (pa[i] !== pb[i]) return pb[i] - pa[i];
+    return 0;
+  };
+  function renderVersions() {
+    const list = document.getElementById('versions');
+    list.replaceChildren();
+    if (releases.github_error) list.append(el('p', { className: 'error' }, releases.github_error));
+    const published = new Map(releases.published.map((r) => [r.version, r]));
+    const rows = new Map(releases.github.map((r) => [r.version, r]));
+    for (const r of releases.published) if (!rows.has(r.version)) rows.set(r.version, r);
+    const select = document.getElementById('min-version');
+    select.replaceChildren(el('option', { value: '' }, 'Ninguna'));
+    for (const r of [...releases.published].sort(byVersion)) {
+      select.append(el('option', { value: r.version }, `v${r.version}`));
+    }
+    select.value = releases.min_version ?? '';
+    if (!rows.size && !releases.github_error) {
+      list.append(el('p', { className: 'empty' }, 'Ninguna.'));
+      return;
+    }
+    for (const r of [...rows.values()].sort(byVersion)) {
+      const pub = published.get(r.version);
+      const installs = machines.filter((m) => m.app_version === r.version).length;
+      const card = el('article', { className: 'card' });
+      const info = el('div');
+      info.append(
+        el('div', { className: 'who' }, `v${r.version}`),
+        el('div', { className: 'meta' },
+          (pub ? `Publicada ${when(pub.published_at)}` : 'Sin publicar') +
+          ` · ${(r.size / 1e6).toFixed(1)} MB · ${installs} ${installs === 1 ? 'equipo' : 'equipos'}`),
+        el('div', { className: 'meta code' }, `SHA-256 ${(pub ?? r).sha256.slice(0, 16)}…`),
+      );
+      const actions = el('div', { className: 'actions' });
+      actions.append(pub
+        ? button('revoke', 'Retirar', () => {
+            if (confirm(`¿Dejar de ofrecer la v${r.version}?`)) releaseCall(`/api/v1/admin/releases/${r.version}`, 'DELETE');
+          })
+        : button('approve', 'Publicar', () => {
+            if (confirm(`¿Ofrecer la v${r.version} a todos los equipos?`)) releaseCall('/api/v1/admin/releases', 'POST', { version: r.version });
+          }));
+      card.append(info, el('span', { className: `tag badge ${pub ? 'published' : 'unpublished'}` },
+        pub ? 'Publicada' : 'Sin publicar'), actions);
+      list.append(card);
+    }
+  }
+  async function loadVersions() {
+    try {
+      releases = await call('/api/v1/admin/releases');
+      renderVersions();
+    } catch (error) {
+      document.getElementById('versions').replaceChildren(
+        el('p', { className: 'error' }, `No se pudo cargar las versiones: ${error.message}`));
+    }
+  }
+  async function releaseCall(path, method, body) {
+    try { await call(path, method, body); } catch (e) { alert(e.message); }
+    loadVersions();
+  }
+  document.getElementById('min-version').addEventListener('change', (event) => {
+    const value = event.target.value || null;
+    const text = value ? `¿Obligar a actualizar a la v${value} o superior?` : '¿Quitar la versión mínima?';
+    if (!confirm(text)) { event.target.value = releases.min_version ?? ''; return; }
+    releaseCall('/api/v1/admin/min-version', 'PUT', { min_version: value });
+  });
+  for (const tab of document.querySelectorAll('[data-view]')) {
+    tab.addEventListener('click', () => {
+      for (const other of document.querySelectorAll('[data-view]')) {
+        const on = other === tab;
+        other.setAttribute('aria-selected', String(on));
+        document.getElementById(`${other.dataset.view}-view`).hidden = !on;
+      }
+      if (tab.dataset.view === 'versions') loadVersions();
+    });
+  }
   for (const b of document.querySelectorAll('[data-filter]')) {
     b.addEventListener('click', () => {
       filter = b.dataset.filter;

@@ -73,6 +73,17 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v7
+      # Updates compare the running APP_VERSION with the published one, so a release
+      # whose executable reports another version would be offered again forever.
+      - name: Check the tag matches APP_VERSION
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          version=$(sed -n 's/^APP_VERSION = "\(.*\)"/\1/p' backend/app/config.py)
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "El tag $GITHUB_REF_NAME no coincide con APP_VERSION $version"
+            exit 1
+          fi
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
@@ -118,6 +129,74 @@ jobs:
             }
           } finally {
             Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue
+          }
+      # The real thing on Windows: a running onefile executable renamed under itself, a
+      # new instance in its own console, and the rollback when the new one fails.
+      - name: Build an older executable to update from
+        shell: pwsh
+        run: |
+          (Get-Content backend/app/config.py) -replace '^APP_VERSION = .*', 'APP_VERSION = "0.0.1"' |
+            Set-Content backend/app/config.py
+          pyinstaller --noconfirm --distpath dist-old --workpath build-old packaging/renfe-enjoyer.spec
+          git checkout -- backend/app/config.py
+      - name: Self-update hands over to the new version, or rolls back
+        shell: pwsh
+        env:
+          LOCALAPPDATA: ${{ runner.temp }}
+          RENFE_NO_BROWSER: '1'
+          RENFE_PORT: '8766'
+          # Unreachable: the staged update is picked up from disk, as after a restart.
+          RENFE_ACTIVATION_URL: http://127.0.0.1:9
+        run: |
+          $version = (Select-String backend/app/config.py -Pattern '^APP_VERSION = "(.+)"').Matches[0].Groups[1].Value
+          $url = 'http://127.0.0.1:8766'
+          function Get-Version { try { (Invoke-RestMethod "$url/api/health" -TimeoutSec 2).version } catch { $null } }
+          function Wait-Version($expected, $seconds) {
+            for ($i = 0; $i -lt $seconds * 2; $i++) {
+              if ((Get-Version) -eq $expected) { return }
+              Start-Sleep -Milliseconds 500
+            }
+            throw "No llegó a responder la versión $expected"
+          }
+          function Sha($path) { (Get-FileHash $path -Algorithm SHA256).Hash.ToLower() }
+          function Install-Staged($dir, $staged) {
+            New-Item -ItemType Directory -Force $dir | Out-Null
+            Copy-Item dist-old\RenfeEnjoyer.exe "$dir\RenfeEnjoyer.exe"
+            Copy-Item $staged "$dir\RenfeEnjoyer.exe.new"
+            @{ version = $version; sha256 = (Sha $staged) } | ConvertTo-Json -Compress |
+              Set-Content -Encoding ascii "$dir\RenfeEnjoyer.exe.new.json"
+            $process = Start-Process "$dir\RenfeEnjoyer.exe" -PassThru
+            Wait-Version '0.0.1' 60
+            if ((Invoke-RestMethod "$url/api/update").state -ne 'ready') { throw 'La actualización no quedó lista' }
+            Invoke-RestMethod "$url/api/update" -Method Post | Out-Null
+            return $process
+          }
+          try {
+            $dir = "$env:RUNNER_TEMP\update-ok"
+            $old = Install-Staged $dir dist\RenfeEnjoyer.exe
+            Wait-Version $version 90
+            if (-not $old.WaitForExit(30000)) { throw 'El proceso viejo no terminó' }
+            if ((Sha "$dir\RenfeEnjoyer.exe") -ne (Sha dist\RenfeEnjoyer.exe)) { throw 'No se reemplazó el ejecutable' }
+            for ($i = 0; $i -lt 60 -and (Test-Path "$dir\RenfeEnjoyer.exe.old"); $i++) { Start-Sleep -Milliseconds 500 }
+            if (Test-Path "$dir\RenfeEnjoyer.exe.old") { throw 'Quedó RenfeEnjoyer.exe.old' }
+            Get-Process RenfeEnjoyer -ErrorAction SilentlyContinue | Stop-Process -Force
+            Start-Sleep -Seconds 2
+
+            # where.exe exits at once on the unknown --after-update argument.
+            $dir = "$env:RUNNER_TEMP\update-bad"
+            $old = Install-Staged $dir "$env:SystemRoot\System32\where.exe"
+            for ($i = 0; $i -lt 120; $i++) {
+              $state = try { Invoke-RestMethod "$url/api/update" -TimeoutSec 2 } catch { $null }
+              if ($state.state -eq 'failed') { break }
+              Start-Sleep -Milliseconds 500
+            }
+            if ($state.state -ne 'failed') { throw 'No se deshizo la actualización fallida' }
+            if ((Get-Version) -ne '0.0.1') { throw 'La versión vieja no volvió a servir' }
+            if ((Sha "$dir\RenfeEnjoyer.exe") -ne (Sha dist-old\RenfeEnjoyer.exe)) { throw 'No se restauró el ejecutable' }
+            $left = Get-ChildItem $dir -Filter 'RenfeEnjoyer.exe.*'
+            if ($left) { throw "Quedaron restos: $($left.Name -join ', ')" }
+          } finally {
+            Get-Process RenfeEnjoyer -ErrorAction SilentlyContinue | Stop-Process -Force
           }
       - uses: actions/upload-artifact@v7
         with:

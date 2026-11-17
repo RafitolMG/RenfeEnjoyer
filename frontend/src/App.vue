@@ -8,6 +8,7 @@ import ActivationPanel from '@/components/ActivationPanel.vue'
 import JobMonitor from '@/components/JobMonitor.vue'
 import ProfileDialog from '@/components/ProfileDialog.vue'
 import SearchForm from '@/components/SearchForm.vue'
+import UpdateBanner from '@/components/UpdateBanner.vue'
 import { useJobStream } from '@/composables/useJobStream'
 import { occupiesBrowser } from '@/jobState'
 
@@ -199,6 +200,8 @@ onMounted(() => {
         </button>
       </div>
     </header>
+
+    <UpdateBanner :busy="busy" />
 
     <!-- While locked the activation panel already says why. -->
     <p v-if="error && !locked" class="error-text banner">{{ error }}</p>
