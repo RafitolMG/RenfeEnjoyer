@@ -54,6 +54,8 @@ export const api = {
 
   applyUpdate: () => request<UpdateStatus>('/update', { method: 'POST' }),
 
+  checkUpdate: () => request<UpdateStatus>('/update/check', { method: 'POST' }),
+
   getVersion: () => request<{ status: string; version: string }>('/health'),
 
   listProfiles: () => request<Profile[]>('/users'),

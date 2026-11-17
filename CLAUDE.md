@@ -54,12 +54,16 @@ spec on `ubuntu-22.04` (PyInstaller bundles everything but glibc, so building on
 start on older distributions), smoke-tests it and uploads `RenfeEnjoyer-linux`. Frozen on Linux, `DATA_DIR` is
 `$XDG_DATA_HOME/RenfeEnjoyer` (`~/.local/share`), and the binary is run from a terminal, whose Ctrl+C stops it.
 **On Linux the bundle's `LD_LIBRARY_PATH` must not reach child processes**: PyInstaller points it at the bundled
-22.04 libraries, and on Arch even `/bin/sh` then dies (`undefined symbol: rl_trim_arg_from_keyseq`), so 2.0.5
+22.04 libraries, and on Arch even `/bin/sh` then dies (`undefined symbol: rl_trim_arg_from_keyseq`), so the first 2.0.5 build
 could not open the browser. `config.system_environment()` strips it from `os.environ` at import when frozen; the
 running process is unaffected because the loader reads it only at startup. `RenfeEnjoyer --check-browser`
 starts the bot's driver headless and loads a page; both CI jobs run it, and the `linux` job also runs
 `packaging/check-linux-binary.sh` in Arch, Fedora, Debian and Ubuntu containers with the binary mounted
 read-only (the updater's start-up tidying once crashed the app there; `updater._remove` now never raises).
+**HTTPS likewise**: the bundled OpenSSL looks for CA certificates where the build machine keeps them
+(`/usr/lib/ssl`), which Arch and Fedora lack, so every request to the activation server and GitHub failed as "no
+connection". `config.ca_bundle()` sets `SSL_CERT_FILE` to the system bundle, or certifi's (packaged with Selenium)
+on images with none; the container check asks the real activation server.
 A pushed `v*` tag runs the `release` job once both builds pass: it checks the tag against `APP_VERSION` and
 publishes both files as one GitHub release (`gh release create … --latest`). The landing page
 (`activation/app/index.html`) links to `releases/latest/download/<asset>` and the activation server finds builds
@@ -104,7 +108,11 @@ license key, with `"kind": "update"` so neither can pass for the other; revoked 
 takes the running executable's permission bits, or on Linux the new build would not be executable. The admin can set a
 published version as minimum, below which `POST /api/jobs/current` returns 403. On the desktop side
 `app/updater.py` downloads to `<exe>.new`, checks hash and size, records `<exe>.new.json` (so a finished download
-survives a restart), and the SPA's `UpdateBanner` offers "Actualizar" while no search runs. The handover lives in
+survives a restart), and the SPA's `UpdateBanner` offers "Actualizar" while no search runs. A file that does not
+match its pin is remembered by (version, sha256) and not fetched again until the offer changes; a network
+failure is retried at the next check, which "Comprobar de nuevo" (`POST /api/update/check`) forces. Rebuilding a
+release under the same version changes its digests behind the pin: the admin flags it (`stale`) and
+"Volver a fijar" (`POST /api/v1/admin/releases/{version}/repin`) re-pins in place, even for the minimum version. The handover lives in
 `app.desktop`: the server stops (closing job streams first, or the graceful shutdown waits on them), the running
 `.exe` is renamed to `.old` — Windows allows renaming a running executable, not overwriting it — the new one starts
 with `--after-update` and `PYINSTALLER_RESET_ENVIRONMENT=1` (otherwise a onefile child reuses its parent's unpacked

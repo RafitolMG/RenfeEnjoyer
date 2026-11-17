@@ -72,3 +72,14 @@ def test_the_browser_check_reports_a_browser_that_will_not_start(
     monkeypatch.setattr("app.bot.driver.build_chrome_driver", broken)
     assert desktop.check_browser() == 1
     assert "chrome exploded" in capsys.readouterr().err
+
+
+def test_https_trusts_the_systems_certificates() -> None:
+    from app.config import ca_bundle
+
+    fedora = "/etc/pki/tls/certs/ca-bundle.crt"
+    assert ca_bundle({}, exists=lambda path: path == fedora) == fedora
+    # A minimal system without any falls back to certifi's.
+    assert ca_bundle({}, exists=lambda path: False).endswith("cacert.pem")
+    # What the user chose wins.
+    assert ca_bundle({"SSL_CERT_FILE": "/mine.pem"}, exists=lambda path: True) is None

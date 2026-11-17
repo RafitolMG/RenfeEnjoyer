@@ -112,8 +112,14 @@ class Updater:
         self._target: str | None = None
         self._progress = 0.0
         self._error: str | None = None
+        # The download in hand or under way, as (version, sha256): the admin can re-pin
+        # a version to a rebuilt file, and that one has to be fetched again.
+        self._key: tuple[str, str] | None = None
         # Versions whose handover failed: not offered again until the app restarts.
         self._failed: set[str] = set()
+        # Files that did not match what was published: fetching them again would only
+        # fail again, so they wait for the offer to change.
+        self._rejected: set[tuple[str, str]] = set()
         self._download: threading.Thread | None = None
         # Set by app.desktop: stops the server so the port is free for the handover.
         self.stop_server: Callable[[], None] | None = None
@@ -143,6 +149,7 @@ class Updater:
                     record["version"],
                     1.0,
                 )
+                self._key = (record["version"], record["sha256"])
                 return
         except (OSError, ValueError, KeyError, TypeError):
             pass
@@ -178,13 +185,20 @@ class Updater:
                 if self._state in {"ready", "failed", "manual"} or self._target:
                     self._discard_staged()
                 self._state, self._target, self._error = "none", None, None
+                self._key = None
                 return
             if offer.version in self._failed:
                 return
-            if self._target == offer.version and self._state in {"ready", "downloading"}:
+            key = (offer.version, offer.sha256)
+            if key in self._rejected:
+                self._state, self._target, self._key = "failed", offer.version, key
+                self._error = _mismatch(offer.version)
                 return
-            self._state, self._target = "downloading", offer.version
+            if self._key == key and self._state in {"ready", "downloading"}:
+                return
+            self._state, self._target, self._key = "downloading", offer.version, key
             self._progress, self._error = 0.0, None
+            logger.info("Descargando la versión %s…", offer.version)
             self._download = threading.Thread(
                 target=self._fetch, args=(offer,), name="renfe-update", daemon=True
             )
@@ -192,7 +206,10 @@ class Updater:
 
     def _still_wanted(self, offer: UpdateOffer) -> bool:
         with self._lock:
-            return self._target == offer.version and self._state == "downloading"
+            return (
+                self._key == (offer.version, offer.sha256)
+                and self._state == "downloading"
+            )
 
     def _fetch(self, offer: UpdateOffer) -> None:
         part = self._path(".part")
@@ -219,10 +236,13 @@ class Updater:
                         handle.write(chunk)
                         digest.update(chunk)
                         received += len(chunk)
+                        if received > offer.size:
+                            # Not the published file: no point fetching the rest.
+                            raise _Mismatch
                         with self._lock:
                             self._progress = min(received / max(offer.size, 1), 1.0)
             if received != offer.size or digest.hexdigest() != offer.sha256:
-                raise ValueError("el archivo descargado no coincide con el publicado")
+                raise _Mismatch
             # On Linux a fresh file is not executable: the new build would never start.
             assert self.executable is not None
             part.chmod(self.executable.stat().st_mode & 0o777)
@@ -231,20 +251,34 @@ class Updater:
                 json.dumps({"version": offer.version, "sha256": offer.sha256})
             )
         except _Superseded:
-            part.unlink(missing_ok=True)
+            _remove(part)
+            return
+        except _Mismatch:
+            _remove(part)
+            logger.warning(
+                "%s: no se repetirá la descarga hasta que cambie lo publicado",
+                _mismatch(offer.version),
+            )
+            with self._lock:
+                self._rejected.add((offer.version, offer.sha256))
+            self._finish(offer, "failed", _mismatch(offer.version))
             return
         except (OSError, ValueError) as exc:
-            part.unlink(missing_ok=True)
-            logger.warning("Update download failed: %s", exc)
+            _remove(part)
+            logger.warning("No se pudo descargar la versión %s: %s", offer.version, exc)
             self._finish(
-                offer, "failed", f"No se pudo descargar la versión {offer.version}"
+                offer,
+                "failed",
+                f"No se pudo descargar la versión {offer.version}; "
+                "se reintentará en la próxima comprobación",
             )
             return
+        logger.info("Versión %s descargada: instálala con Actualizar", offer.version)
         self._finish(offer, "ready", None)
 
     def _finish(self, offer: UpdateOffer, state: str, error: str | None) -> None:
         with self._lock:
-            if self._target != offer.version:
+            if self._key != (offer.version, offer.sha256):
                 return
             self._state, self._error = state, error
             if state == "ready":
@@ -343,6 +377,14 @@ class Updater:
 
 class _Superseded(Exception):
     """A newer offer, or a withdrawal, arrived while downloading."""
+
+
+class _Mismatch(Exception):
+    """The file downloaded is not the one the admin published."""
+
+
+def _mismatch(version: str) -> str:
+    return f"La descarga de la versión {version} no coincide con la publicada"
 
 
 def _remove(path: Path) -> None:

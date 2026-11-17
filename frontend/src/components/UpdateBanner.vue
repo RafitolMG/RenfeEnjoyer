@@ -8,6 +8,7 @@ const props = defineProps<{ busy: boolean }>()
 
 const update = ref<UpdateStatus | null>(null)
 const error = ref('')
+const checking = ref(false)
 
 const IDLE_POLL_MS = 5 * 60_000
 const ACTIVE_POLL_MS = 1000
@@ -71,6 +72,20 @@ async function install() {
   refresh()
 }
 
+// Asks the activation server now, e.g. once the admin has fixed a published version.
+async function checkNow() {
+  checking.value = true
+  error.value = ''
+  try {
+    update.value = await api.checkUpdate()
+  } catch (cause) {
+    error.value = (cause as Error).message
+  } finally {
+    checking.value = false
+  }
+  schedule()
+}
+
 onMounted(refresh)
 onBeforeUnmount(() => window.clearTimeout(timer))
 </script>
@@ -101,8 +116,16 @@ onBeforeUnmount(() => window.clearTimeout(timer))
 
     <template v-else>
       <span>{{ update.error ?? `Versión ${update.version} disponible.` }}</span>
+      <button
+        v-if="update.state === 'failed'"
+        class="btn btn--ghost btn--small"
+        :disabled="checking"
+        @click="checkNow"
+      >
+        {{ checking ? 'Comprobando…' : 'Comprobar de nuevo' }}
+      </button>
       <a v-if="update.download_url" class="update__link" :href="update.download_url">
-        Descargar
+        Descargar a mano
       </a>
     </template>
 

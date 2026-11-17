@@ -1,6 +1,7 @@
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -26,12 +27,46 @@ def system_environment(environ: dict[str, str]) -> dict[str, str]:
     return env
 
 
+# Where each family of distributions keeps its CA bundle.
+SYSTEM_CA_BUNDLES = (
+    "/etc/ssl/certs/ca-certificates.crt",  # Debian, Ubuntu, Arch, Gentoo
+    "/etc/pki/tls/certs/ca-bundle.crt",  # Fedora, RHEL
+    "/etc/ssl/ca-bundle.pem",  # openSUSE
+    "/etc/ssl/cert.pem",  # Alpine, and Arch again
+)
+
+
+def ca_bundle(environ: dict[str, str], exists: Any = os.path.exists) -> str | None:
+    """The certificates HTTPS should trust, if the bundled OpenSSL cannot find them.
+
+    Its compiled-in location is the build machine's (/usr/lib/ssl on Ubuntu), which Arch
+    and Fedora do not have, so every HTTPS request, to the activation server or to
+    GitHub for updates, failed as "no connection". The system's own bundle comes first,
+    so certificates the user added are trusted; certifi's, packaged with Selenium, is
+    the fallback for minimal systems with none.
+    """
+    if environ.get("SSL_CERT_FILE") or environ.get("SSL_CERT_DIR"):
+        return None
+    for path in SYSTEM_CA_BUNDLES:
+        if exists(path):
+            return path
+    try:
+        import certifi
+    except ImportError:
+        return None
+    return str(certifi.where())
+
+
 if FROZEN and sys.platform.startswith("linux"):
     # The loader reads LD_LIBRARY_PATH only at startup, so this process keeps finding its
     # bundled libraries; only the programs it starts from now on see the system's.
     _cleaned = system_environment(dict(os.environ))
     os.environ.clear()
     os.environ.update(_cleaned)
+    # OpenSSL reads SSL_CERT_FILE whenever a context loads the default certificates.
+    _bundle = ca_bundle(dict(os.environ))
+    if _bundle:
+        os.environ["SSL_CERT_FILE"] = _bundle
 
 if FROZEN:
     _BUNDLE_DIR = Path(getattr(sys, "_MEIPASS", BASE_DIR))

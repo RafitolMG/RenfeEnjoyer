@@ -239,7 +239,7 @@ jobs:
             { echo 'No creó la base de datos en $XDG_DATA_HOME/RenfeEnjoyer'; exit 1; }
       # PyInstaller points LD_LIBRARY_PATH at the bundle; programs the app starts must not
       # inherit it, or a newer distribution's /bin/sh breaks on the bundle's libraries
-      # (2.0.5 could not open the browser on Arch). This runner has the same libraries as
+      # (the first 2.0.5 build could not open the browser on Arch). This runner has the same libraries as
       # the bundle, so check the variable itself; the containers below check the effect.
       - name: Programs it starts get the system's libraries
         env:

@@ -329,3 +329,75 @@ def test_a_version_below_the_minimum_cannot_search(
     )
     assert response.status_code == 403
     assert "actualiza" in response.json()["detail"]
+
+
+@pytest.fixture
+def counted_server() -> Iterator[tuple[str, list[str]]]:
+    """Like download_server, recording each request."""
+    hits: list[str] = []
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            hits.append(self.path)
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(NEW_BUILD)))
+            self.end_headers()
+            self.wfile.write(NEW_BUILD)
+
+        def log_message(self, *args: object) -> None:
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(
+        target=server.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True
+    ).start()
+    yield f"http://127.0.0.1:{server.server_port}/RenfeEnjoyer.exe", hits
+    server.shutdown()
+
+
+def test_a_file_that_does_not_match_is_not_fetched_again(
+    exe: Path, counted_server: tuple[str, list[str]]
+) -> None:
+    """The admin's pin and GitHub's file disagree: every check used to re-download it."""
+    url, hits = counted_server
+    updater = Updater(exe, current="2.0.0")
+    stale = offer(url, sha256="0" * 64)
+    updater.offer(stale)
+    assert settle(updater) == "failed"
+    for _ in range(3):  # the hourly checks
+        updater.offer(stale)
+    assert len(hits) == 1
+    assert (
+        updater.state()["error"]
+        == "La descarga de la versión 2.1.0 no coincide con la publicada"
+    )
+
+
+def test_a_re_pinned_version_is_fetched_again(
+    exe: Path, counted_server: tuple[str, list[str]]
+) -> None:
+    url, hits = counted_server
+    updater = Updater(exe, current="2.0.0")
+    updater.offer(offer(url, sha256="0" * 64))
+    assert settle(updater) == "failed"
+    updater.offer(offer(url))  # same version, now pinned to the right file
+    assert settle(updater) == "ready"
+    assert len(hits) == 2
+
+
+def test_a_download_that_never_arrived_is_retried(exe: Path) -> None:
+    updater = Updater(exe, current="2.0.0")
+    down = offer("http://127.0.0.1:9/RenfeEnjoyer.exe")
+    updater.offer(down)
+    assert settle(updater) == "failed"
+    assert "se reintentará" in updater.state()["error"]
+    updater.offer(down)
+    assert updater.state()["state"] == "downloading"
+    settle(updater)
+
+
+def test_an_oversized_download_stops_early(exe: Path, download_server: str) -> None:
+    updater = Updater(exe, current="2.0.0")
+    updater.offer(offer(download_server, size=1000))
+    assert settle(updater) == "failed"
+    assert not exe.with_name("RenfeEnjoyer.exe.part").exists()

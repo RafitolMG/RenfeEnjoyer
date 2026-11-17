@@ -12,6 +12,7 @@ one never answers, serves again as before.
 """
 
 import json
+import logging
 import os
 import sys
 import tempfile
@@ -150,6 +151,10 @@ def check_browser() -> int:
 
 
 def run() -> None:
+    # The console is what the user reads: time and message, not "WARNING:app.updater:".
+    logging.basicConfig(
+        format="%(asctime)s  %(message)s", datefmt="%H:%M", level=logging.INFO, force=True
+    )
     if "--check-browser" in sys.argv:
         sys.exit(check_browser())
     try:

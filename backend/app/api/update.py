@@ -19,6 +19,14 @@ def read_update(updater: UpdaterDep, activator: ActivatorDep) -> dict[str, Any]:
     return updater.state()
 
 
+@router.post("/check")
+def check_for_update(updater: UpdaterDep, activator: ActivatorDep) -> dict[str, Any]:
+    """Ask the activation server now instead of waiting for the hourly check."""
+    if activator.required:
+        activator.refresh(force=True)
+    return updater.state()
+
+
 @router.post("", status_code=status.HTTP_202_ACCEPTED)
 def apply_update(updater: UpdaterDep) -> dict[str, Any]:
     """Install the downloaded version: this server stops and the new one takes over."""

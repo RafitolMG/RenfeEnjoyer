@@ -142,6 +142,10 @@ anterior y lo dice.
 Si el administrador marca una **versión mínima**, las anteriores siguen abriéndose pero no dejan
 buscar hasta actualizar.
 
+La app busca versiones nuevas cada hora. Si una descarga falla, lo dice en la misma barra:
+**Comprobar de nuevo** pregunta al servidor en el acto y **Descargar a mano** baja el ejecutable desde
+GitHub.
+
 ### Publicar una versión
 
 1. Sube la versión en `backend/app/config.py` (`APP_VERSION`), `backend/pyproject.toml` y
@@ -205,7 +209,9 @@ pestañas:
   lo avisa.
 - **Versiones**: las releases de GitHub. **Publicar** ofrece una a las apps y fija el SHA-256 de
   cada ejecutable en ese momento, así que un archivo cambiado después en GitHub no se instala.
-  **Retirar** deja de ofrecerla, y la **versión mínima** obliga a actualizar a las anteriores.
+  **Retirar** deja de ofrecerla, y la **versión mínima** obliga a actualizar a las anteriores. Si una
+  release se vuelve a compilar con el mismo número, sus archivos ya no coinciden con lo fijado y la
+  pestaña lo avisa: **Volver a fijar** lo corrige sin dejar de ofrecerla.
 
 La ubicación sale de la base gratuita *IP to City Lite* de [DB-IP](https://db-ip.com), que el
 servidor descarga en su volumen de datos y renueva cada mes: las IPs no se envían a nadie.

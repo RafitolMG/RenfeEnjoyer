@@ -254,7 +254,7 @@ class Activator:
         try:
             self.update = self.verify_update(signed) if signed else None
         except ActivationError as exc:
-            logger.warning("Activation: %s", exc)
+            logger.warning("Actualización: %s", exc)
             self.update = None
         if self.on_update is not None:
             self.on_update(self.update)
@@ -263,7 +263,7 @@ class Activator:
         try:
             self._apply(self._post(path, {"machine_id": self.machine, **body}))
         except ActivationError as exc:
-            logger.warning("Activation: %s", exc)
+            logger.warning("Activación: %s", exc)
             self._error = str(exc)
             self._checked_at = time.monotonic()
 
