@@ -18,7 +18,7 @@ LICENSE_DAYS = int(os.getenv("LICENSE_DAYS", "7"))
 MAX_PENDING = int(os.getenv("MAX_PENDING", "500"))
 
 # Where CI publishes the Windows executable, and the asset's name in each release.
-GITHUB_REPO = os.getenv("GITHUB_REPO", "RafitolMG/RenfeEnjoyer-Backend")
+GITHUB_REPO = os.getenv("GITHUB_REPO", "RafitolMG/RenfeEnjoyer")
 RELEASE_ASSET = "RenfeEnjoyer.exe"
 # Optional: only raises GitHub's rate limit (60 requests an hour without it).
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")

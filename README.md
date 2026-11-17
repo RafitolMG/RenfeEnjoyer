@@ -24,8 +24,8 @@ Esto es para Linux. En Windows hay un ejecutable que no necesita nada de esto: v
 Una sola vez en cada equipo:
 
 ```bash
-git clone -b ubuntu-dev https://github.com/RafitolMG/RenfeEnjoyer-Backend.git
-cd RenfeEnjoyer-Backend
+git clone -b ubuntu-dev https://github.com/RafitolMG/RenfeEnjoyer.git
+cd RenfeEnjoyer
 ./scripts/install.sh
 ```
 
@@ -83,7 +83,7 @@ Tailscale; solo **Google Chrome** instalado. El `chromedriver` lo descarga Selen
 vez, así que esa primera búsqueda necesita internet y tarda algo más.
 
 **Descargarlo.** Desde <https://renfe.rafitolmg.dev>, o directamente la última versión en
-<https://github.com/RafitolMG/RenfeEnjoyer-Backend/releases/latest/download/RenfeEnjoyer.exe>. No hace
+<https://github.com/RafitolMG/RenfeEnjoyer/releases/latest/download/RenfeEnjoyer.exe>. No hace
 falta cuenta de GitHub. El CI también lo compila en cada push y lo deja como artefacto
 `RenfeEnjoyer-windows` en *Actions*, pero esos piden cuenta y caducan a los 90 días.
 
@@ -122,8 +122,8 @@ protegió su PC»). Pulsa *Más información* → *Ejecutar de todas formas*.
 **Compilarlo a mano**, en un Windows con Python 3.12+ y Node 20+:
 
 ```powershell
-git clone -b ubuntu-dev https://github.com/RafitolMG/RenfeEnjoyer-Backend.git
-cd RenfeEnjoyer-Backend
+git clone -b ubuntu-dev https://github.com/RafitolMG/RenfeEnjoyer.git
+cd RenfeEnjoyer
 python -m venv .venv
 .venv\Scripts\pip install -e ".\backend[build]"
 cd frontend; npm ci; npm run build; cd ..

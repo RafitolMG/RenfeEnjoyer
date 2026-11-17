@@ -9,7 +9,8 @@ user picks a saved profile, a direction and a date; the bot logs into `venta.ren
 lists that day's trains for the user to choose one, then refreshes the results page until the chosen train
 has seats, reserves it, and hands the browser over so the user completes the booking by hand.
 
-Despite the `-Backend` repo name there is no separate frontend repo — this is a **monorepo**:
+There is no separate frontend repo — this is a **monorepo** (the GitHub repo is `RafitolMG/RenfeEnjoyer`; it was
+`RenfeEnjoyer-Backend` until 2026-11-17, and GitHub redirects the old URLs):
 
 - `backend/` — FastAPI app wrapping the Selenium bot, SQLite for profiles.
 - `frontend/` — Vue 3 + TypeScript SPA (Vite) that launches searches and streams progress.

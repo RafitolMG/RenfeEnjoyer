@@ -86,7 +86,7 @@
 <header class="wrap">
   <nav aria-label="Principal">
     <a class="brand" href="/"><img src="/static/logo.webp" alt="" width="36" height="36">Renfe Enjoyer</a>
-    <a class="nav-link" href="https://github.com/RafitolMG/RenfeEnjoyer-Backend/tree/ubuntu-dev">Código en GitHub</a>
+    <a class="nav-link" href="https://github.com/RafitolMG/RenfeEnjoyer/tree/ubuntu-dev">Código en GitHub</a>
   </nav>
 </header>
 
@@ -97,7 +97,7 @@
       <p class="lead">Vigila el tren que eliges y lo reserva en cuanto se libera una plaza.</p>
       <div class="cta">
         <a class="btn btn-primary" id="download"
-           href="https://github.com/RafitolMG/RenfeEnjoyer-Backend/releases/latest/download/RenfeEnjoyer.exe">
+           href="https://github.com/RafitolMG/RenfeEnjoyer/releases/latest/download/RenfeEnjoyer.exe">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0-5-5m5 5 5-5M4 19h16"/></svg>
           Descargar para Windows
@@ -130,8 +130,8 @@
   <div class="wrap">
     <span>Sin relación con Renfe · GPL-3.0</span>
     <nav aria-label="Pie">
-      <a href="https://github.com/RafitolMG/RenfeEnjoyer-Backend/releases">Versiones</a>
-      <a href="https://github.com/RafitolMG/RenfeEnjoyer-Backend/tree/ubuntu-dev">GitHub</a>
+      <a href="https://github.com/RafitolMG/RenfeEnjoyer/releases">Versiones</a>
+      <a href="https://github.com/RafitolMG/RenfeEnjoyer/tree/ubuntu-dev">GitHub</a>
       <a href="/admin">Administración</a>
     </nav>
   </div>
@@ -144,7 +144,7 @@
   setTimeout(() => board.classList.add('done'), reduced ? 0 : 3500);
 
   // Show which version the button downloads. Optional: the link works without it.
-  fetch('https://api.github.com/repos/RafitolMG/RenfeEnjoyer-Backend/releases/latest')
+  fetch('https://api.github.com/repos/RafitolMG/RenfeEnjoyer/releases/latest')
     .then((response) => (response.ok ? response.json() : null))
     .then((release) => {
       if (!release) return;
