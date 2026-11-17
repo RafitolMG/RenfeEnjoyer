@@ -193,7 +193,8 @@ jobs:
             if ($state.state -ne 'failed') { throw 'No se deshizo la actualización fallida' }
             if ((Get-Version) -ne '0.0.1') { throw 'La versión vieja no volvió a servir' }
             if ((Sha "$dir\RenfeEnjoyer.exe") -ne (Sha dist-old\RenfeEnjoyer.exe)) { throw 'No se restauró el ejecutable' }
-            $left = Get-ChildItem $dir -Filter 'RenfeEnjoyer.exe.*'
+            # Not -Filter: Win32 wildcards let 'RenfeEnjoyer.exe.*' match RenfeEnjoyer.exe itself.
+            $left = Get-ChildItem $dir | Where-Object Name -like 'RenfeEnjoyer.exe.*'
             if ($left) { throw "Quedaron restos: $($left.Name -join ', ')" }
           } finally {
             Get-Process RenfeEnjoyer -ErrorAction SilentlyContinue | Stop-Process -Force
