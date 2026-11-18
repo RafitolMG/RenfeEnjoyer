@@ -14,6 +14,9 @@ dependencies = [
     "selenium>=4.45",
     # Verifies the activation server's signed licenses (app/activation.py).
     "cryptography>=43",
+    # The native window on Windows (app/window.py), over the system's WebView2. Linux
+    # opens the browser in app mode instead, so it does not need it.
+    "pywebview>=6.2; sys_platform == 'win32'",
 ]
 
 [project.optional-dependencies]

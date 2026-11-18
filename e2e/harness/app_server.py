@@ -7,6 +7,8 @@ Everything is the app's own code except three stand-ins, set from the environmen
 - the activation server's public key and URL (E2E_PUBLIC_KEY, E2E_ACTIVATION_URL), so a
   local server with a test key can approve and offer updates; without a URL,
   activation is not required, as in a checkout;
+- no window is opened (RENFE_NO_BROWSER): Playwright's page is the window, and
+  RENFE_QUIT_WHEN_CLOSED makes the app quit when it closes, as after opening one;
 - the executable (E2E_EXE): the updater replaces this file, and "starting the new
   build" runs this same harness as the version written inside the file, or a process
   that dies at once when the file says BROKEN.
@@ -168,7 +170,14 @@ updater = updater_module.Updater(
 updater_module.updater = updater
 activator.on_update = updater.offer
 
-from app import desktop  # noqa: E402  (binds the updater above)
+from app import desktop, window  # noqa: E402  (binds the updater above)
+
+# How long the app waits for a closed window to come back before it quits.
+window.CLOSED_GRACE = float(os.environ.get("E2E_WINDOW_GRACE", window.CLOSED_GRACE))
+# And how long the version an update started waits for that window to reconnect.
+desktop.RECONNECT_ALLOWANCE = float(
+    os.environ.get("E2E_RECONNECT_ALLOWANCE", desktop.RECONNECT_ALLOWANCE)
+)
 
 desktop.updater = updater
 desktop.run()

@@ -76,22 +76,25 @@ def test_it_starts_and_keeps_its_data_in_the_platform_folder(
     assert not (tmp_path / "app" / "renfe_enjoyer.db").exists()
 
 
-@pytest.mark.skipif(not LINUX, reason="BROWSER scripts are a Linux test")
-def test_the_browser_opens_with_the_systems_libraries(
+@pytest.mark.skipif(not LINUX, reason="browser scripts are a Linux test")
+def test_the_window_opens_with_the_systems_libraries(
     tmp_path: Path, services: list[Service]
 ) -> None:
     """The first 2.0.5 build passed its libraries to the browser; Arch's sh died."""
     binary = install(tmp_path)
     browser = tmp_path / "browser"
     browser.write_text(
-        f'#!/bin/sh\nenv > "{tmp_path}/browser-env"\necho "$1" > "{tmp_path}/opened"\n'
+        f'#!/bin/sh\nenv > "{tmp_path}/browser-env"\necho "$@" > "{tmp_path}/opened"\n'
     )
     browser.chmod(0o755)
     port = free_port()
-    service = run(binary, tmp_path / "home", port, BROWSER=str(browser))
+    service = run(binary, tmp_path / "home", port, RENFE_APP_BROWSER=str(browser))
     services.append(service)
     wait_until(lambda: (tmp_path / "opened").exists())
-    assert (tmp_path / "opened").read_text().strip() == f"http://127.0.0.1:{port}"
+    # A window of its own (app mode), in a profile of its own under the data folder.
+    opened = (tmp_path / "opened").read_text()
+    assert f"--app=http://127.0.0.1:{port}" in opened
+    assert f"--user-data-dir={tmp_path / 'home' / 'RenfeEnjoyer'}" in opened
     inherited = (tmp_path / "browser-env").read_text()
     assert "_MEI" not in "".join(
         line for line in inherited.splitlines() if line.startswith("LD_LIBRARY_PATH=")

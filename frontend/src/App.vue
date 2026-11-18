@@ -173,10 +173,24 @@ watch(
   },
 )
 
+// In the desktop app closing this window quits it, and with it a search in progress.
+const closesApp = ref(false)
+
+function confirmClose(event: BeforeUnloadEvent) {
+  if (!closesApp.value || !busy.value) return
+  event.preventDefault()
+  event.returnValue = ''
+}
+
 onMounted(() => {
   loadActivation()
   loadProfiles()
   loadSession()
+  api.getWindow().then(
+    (value) => (closesApp.value = value.closes_app),
+    () => {},
+  )
+  window.addEventListener('beforeunload', confirmClose)
 })
 </script>
 

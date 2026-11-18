@@ -44,15 +44,16 @@ mounts `frontend/dist` at `/` only when that directory exists, after the API rou
 not shadow them; in dev the mount is simply absent.
 
 **Windows ships as a single PyInstaller executable**, not through these scripts. `packaging/renfe-enjoyer.spec`
-bundles the built SPA and runs `app.desktop`, which serves on `127.0.0.1` only (no Tailscale), opens the browser
-once `/api/health` answers, and only opens the browser if the app is already up. `config.FROZEN` switches the
+bundles the built SPA and runs `app.desktop`, which serves on `127.0.0.1` only (no Tailscale), shows the app in its
+own window once the server is up (see "The app's own window" below), and only brings that window back if the app
+is already up. `config.FROZEN` switches the
 data directory to `%LOCALAPPDATA%\RenfeEnjoyer`, because the bundle unpacks to a temp dir deleted on exit, and
 the SPA to the bundle's copy. PyInstaller cannot cross-compile, so the `.exe` is built by the `windows` CI job,
 which also runs the backend tests on Windows, starts the executable and checks it serves the app, then uploads
 it as the `RenfeEnjoyer-windows` artifact. **Linux ships the same way since 2.0.5**: the `linux` job builds the
 spec on `ubuntu-22.04` (PyInstaller bundles everything but glibc, so building on a newer runner would refuse to
 start on older distributions), smoke-tests it and uploads `RenfeEnjoyer-linux`. Frozen on Linux, `DATA_DIR` is
-`$XDG_DATA_HOME/RenfeEnjoyer` (`~/.local/share`), and the binary is run from a terminal, whose Ctrl+C stops it.
+`$XDG_DATA_HOME/RenfeEnjoyer` (`~/.local/share`); closing its window stops it, and so does Ctrl+C in a terminal.
 **On Linux the bundle's `LD_LIBRARY_PATH` must not reach child processes**: PyInstaller points it at the bundled
 22.04 libraries, and on Arch even `/bin/sh` then dies (`undefined symbol: rl_trim_arg_from_keyseq`), so the first 2.0.5 build
 could not open the browser. `config.system_environment()` strips it from `os.environ` at import when frozen; the
@@ -119,6 +120,25 @@ with `--after-update` and `PYINSTALLER_RESET_ENVIRONMENT=1` (otherwise a onefile
 files, deleted when the parent exits), and the old process exits once `/api/health` reports the new version. If
 it never does within `HANDOVER_TIMEOUT`, the old one undoes the swap and serves again. A checkout never updates
 (`git pull`). The Windows CI job exercises the real handover and rollback with a second build patched to 0.0.1.
+
+**The app's own window is its on/off switch** (`app/window.py`). On Windows it is a pywebview window
+over the system's WebView2, owned by the process: `webview.start` must hold the main thread, so `run_native` serves
+on a background thread, and closing the window quits (asking first through a native box while a search runs). The
+`.exe` is built windowed (`console=False`), so `sys.stdout` is `None`: `_attach_log` sends output to
+`DATA_DIR/renfe-enjoyer.log`, startup failures show a message box, and PowerShell only waits for it with
+`Start-Process -Wait`. Without WebView2 pywebview would fall back to Internet Explorer's engine, which cannot run the
+SPA, so the `initialized` handler refuses anything but `edgechromium` and the launcher falls back to app mode. On
+Linux, and as that fallback, the window is Chrome/Chromium/Edge with `--app` and its own `--user-data-dir`
+(`RENFE_APP_BROWSER` overrides the binary): another process, so the server quits once no page has followed the job
+stream for `CLOSED_GRACE` seconds, and the SPA (`GET /api/window` → `closes_app`) raises `beforeunload` during a
+search. That only works because the stream handler watches for disconnects: it used to notice a closed page only at
+the next event, so a closed window counted as open. `RENFE_QUIT_WHEN_CLOSED` is set once such a window opens and is
+inherited by the version an update starts, which opens no window of its own (the old one reconnects) but gives it
+`RECONNECT_ALLOWANCE` to come back. The native window does not survive a handover: the new version opens its own.
+A second launch asks `POST /api/window/focus`, or opens another app-mode window. Bundling a webview on Linux was
+ruled out: WebKitGTK starts helper processes from the build machine's paths, and Qt WebEngine adds 150-200 MB.
+`--check-window` opens the native window on a test page; the `windows` CI job runs it. `RENFE_NO_BROWSER=1` opens
+no window and never quits on its own (CI, the e2e harness).
 
 ```bash
 cd backend  && ../.venv/bin/pytest -q            # single test: pytest tests/test_jobs_api.py::test_name

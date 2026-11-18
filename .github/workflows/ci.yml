@@ -150,10 +150,20 @@ jobs:
           } finally {
             Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue
           }
-      - name: The bot's browser starts
-        run: dist\RenfeEnjoyer.exe --check-browser
+      # The executable has no console: PowerShell does not wait for a windowed program
+      # unless told to, and what it prints goes to renfe-enjoyer.log.
+      - name: The bot's browser starts and the app's own window opens
+        shell: pwsh
+        env:
+          LOCALAPPDATA: ${{ runner.temp }}
+        run: |
+          foreach ($check in '--check-browser', '--check-window') {
+            $run = Start-Process dist\RenfeEnjoyer.exe -ArgumentList $check -Wait -PassThru
+            Get-Content "$env:LOCALAPPDATA\RenfeEnjoyer\renfe-enjoyer.log" -Tail 5 -ErrorAction SilentlyContinue
+            if ($run.ExitCode -ne 0) { throw "$check terminó con el código $($run.ExitCode)" }
+          }
       # The real thing on Windows: a running onefile executable renamed under itself, a
-      # new instance in its own console, and the rollback when the new one fails.
+      # new instance started by it, and the rollback when the new one fails.
       - name: Build an older executable to update from
         shell: pwsh
         run: |

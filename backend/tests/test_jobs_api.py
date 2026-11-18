@@ -1,4 +1,5 @@
 import threading
+import time
 from datetime import date, timedelta
 
 import pytest
@@ -104,6 +105,38 @@ def test_stream_replays_current_state_on_connect(client: TestClient) -> None:
     assert snapshot["type"] == "snapshot"
     assert snapshot["status"]["state"] == "idle"
     assert snapshot["events"] == []
+
+
+def test_a_client_that_leaves_stops_counting_without_any_event() -> None:
+    """Against a real server: TestClient cancels the handler, which hides the bug."""
+    import socket
+
+    import uvicorn
+    from websockets.sync.client import connect
+
+    from app.bot.runner import job_manager
+    from app.main import app
+
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+    server = uvicorn.Server(uvicorn.Config(app, port=port, log_level="warning"))
+    thread = threading.Thread(target=server.run)
+    thread.start()
+    try:
+        while not server.started:
+            time.sleep(0.05)
+        with connect(f"ws://127.0.0.1:{port}/api/jobs/stream") as websocket:
+            websocket.recv(timeout=5)
+            assert job_manager.stream_count() == 1
+        # The desktop app quits at zero: it must not wait for the next event to notice.
+        deadline = time.monotonic() + 5
+        while job_manager.stream_count() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert job_manager.stream_count() == 0
+    finally:
+        server.should_exit = True
+        thread.join(timeout=10)
 
 
 def test_progress_streams_over_the_websocket(

@@ -10,6 +10,7 @@
 #
 # pyinstaller-hooks-contrib already collects Selenium's data files and the modules uvicorn
 # and websockets import dynamically. Selenium's driver classes are the exception, below.
+# pywebview (Windows only) ships its own hook for its WebView2 DLLs.
 import sys
 from pathlib import Path
 
@@ -43,7 +44,21 @@ analysis = Analysis(
     # which import analysis cannot see; without this the bundle dies on `webdriver.Chrome`.
     # Python 3.12 evaluates driver.py's return annotation at import, so it dies on launch.
     hiddenimports=collect_submodules("selenium.webdriver.chrome"),
-    excludes=["tkinter", "pytest", "mypy", "ruff"],
+    # pywebview imports every platform's GUI toolkit somewhere; the Windows build only
+    # uses WinForms with WebView2, and Qt would add 100 MB if it happened to be installed.
+    excludes=[
+        "tkinter",
+        "pytest",
+        "mypy",
+        "ruff",
+        "gi",
+        "qtpy",
+        "PyQt5",
+        "PyQt6",
+        "PySide2",
+        "PySide6",
+        "cefpython3",
+    ],
 )
 analysis.datas = [entry for entry in analysis.datas if not foreign_manager(entry)]
 analysis.binaries = [entry for entry in analysis.binaries if not foreign_manager(entry)]
@@ -56,8 +71,10 @@ exe = EXE(
     analysis.datas,
     name="RenfeEnjoyer",
     icon=str(ROOT / "frontend" / "public" / "favicon.ico"),
-    # The console is the app's on/off switch: closing it stops the server.
-    console=True,
+    # On Windows the app's own window is its on/off switch (app/window.py), so there is
+    # no console; what it prints goes to renfe-enjoyer.log. The Linux binary keeps
+    # writing to the terminal it is started from, if any.
+    console=sys.platform != "win32",
     # UPX-packed executables are flagged by antivirus far more often.
     upx=False,
 )

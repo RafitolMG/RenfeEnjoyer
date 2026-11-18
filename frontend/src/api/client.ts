@@ -58,6 +58,8 @@ export const api = {
 
   getVersion: () => request<{ status: string; version: string }>('/health'),
 
+  getWindow: () => request<{ closes_app: boolean }>('/window'),
+
   listProfiles: () => request<Profile[]>('/users'),
 
   createProfile: (input: ProfileInput) =>

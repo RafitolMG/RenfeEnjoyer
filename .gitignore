@@ -21,6 +21,10 @@ license.json
 
 # Persistent Chrome profile: holds the logged-in Renfe session
 browser-profile/
+# The app window's own profile (app mode) and WebView2 storage, plus its log
+window-profile/
+webview/
+renfe-enjoyer.log*
 
 # IDE settings (per developer)
 .idea/

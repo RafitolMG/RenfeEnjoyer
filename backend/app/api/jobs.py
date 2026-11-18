@@ -1,3 +1,5 @@
+import asyncio
+import contextlib
 from datetime import date
 from typing import Any
 
@@ -130,11 +132,33 @@ async def stream_job(websocket: WebSocket) -> None:
                 "events": job_manager.history(),
             }
         )
-        while (message := await queue.get()) is not None:
-            await websocket.send_json(message)
+        # A client that leaves is otherwise only noticed at the next event, which may
+        # never come; the desktop app counts the clients to know its window is closed.
+        gone = asyncio.create_task(_until_disconnected(websocket))
+        try:
+            while True:
+                next_message = asyncio.ensure_future(queue.get())
+                await asyncio.wait(
+                    {next_message, gone}, return_when=asyncio.FIRST_COMPLETED
+                )
+                if gone.done():
+                    next_message.cancel()
+                    return
+                if (message := next_message.result()) is None:
+                    break
+                await websocket.send_json(message)
+        finally:
+            gone.cancel()
         # The server is stopping for an update: the client reconnects to the new one.
         await websocket.close(code=status.WS_1012_SERVICE_RESTART)
     except WebSocketDisconnect:
         pass
     finally:
         job_manager.unsubscribe(queue)
+
+
+async def _until_disconnected(websocket: WebSocket) -> None:
+    """Return once the client has gone; the stream sends, it never expects messages."""
+    with contextlib.suppress(WebSocketDisconnect, RuntimeError):
+        while (await websocket.receive())["type"] != "websocket.disconnect":
+            pass

@@ -142,6 +142,10 @@ class JobManager:
     def unsubscribe(self, queue: asyncio.Queue[dict[str, Any] | None]) -> None:
         self._subscribers.discard(queue)
 
+    def stream_count(self) -> int:
+        """How many pages follow the job stream: the desktop app quits at none."""
+        return len(self._subscribers)
+
     def _run(self, request: SearchRequest, interaction: Interaction) -> None:
         reporter = _ManagerReporter(self)
         try:

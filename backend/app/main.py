@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api import activation, jobs, session, update, users
+from app.api import activation, jobs, session, update, users, window
 from app.bot.runner import job_manager
 from app.config import APP_VERSION, CORS_ORIGINS, FRONTEND_DIST
 from app.db.session import init_db
@@ -38,6 +38,7 @@ app.include_router(jobs.router)
 app.include_router(session.router)
 app.include_router(activation.router)
 app.include_router(update.router)
+app.include_router(window.router)
 
 
 @app.get("/api/health")

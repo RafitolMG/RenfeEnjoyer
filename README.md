@@ -99,21 +99,25 @@ Fedora 36…). No hace falta cuenta de GitHub.
 
 **Usarlo.**
 
-- **Windows**: doble clic en `RenfeEnjoyer.exe`. Se abre una consola, arranca el servidor y abre la
-  app en el navegador en `http://127.0.0.1:8000`. Cerrar la consola para la app. El ejecutable no
-  está firmado, así que **SmartScreen avisará** la primera vez: *Más información* → *Ejecutar de
-  todas formas*.
-- **Linux**, desde una terminal:
+La app se abre en **su propia ventana**, sin pestañas ni barra de direcciones, y **cerrarla
+cierra la app**. Si hay una búsqueda en curso, antes de cerrar pregunta, porque se detendría.
+
+- **Windows**: doble clic en `RenfeEnjoyer.exe`. La ventana es nativa (WebView2, que viene con
+  Windows 10 y 11), sin consola; lo que antes salía en la consola queda en
+  `%LOCALAPPDATA%\RenfeEnjoyer\renfe-enjoyer.log`. Si faltara WebView2, se abre en Edge en modo app.
+  El ejecutable no está firmado, así que **SmartScreen avisará** la primera vez: *Más información*
+  → *Ejecutar de todas formas*.
+- **Linux**:
 
   ```bash
   chmod +x RenfeEnjoyer-linux
   ./RenfeEnjoyer-linux
   ```
 
-  `Ctrl+C` la para. Lanzarlo con doble clic desde el gestor de archivos no abre terminal en muchos
-  escritorios, y la app quedaría en segundo plano sin una forma fácil de pararla.
+  La ventana es Chrome o Chromium en modo app, con un perfil propio. Desde una terminal, `Ctrl+C`
+  también la para.
 
-Si ya estaba abierta, lanzarla otra vez solo vuelve a abrir el navegador. Si el puerto 8000 está
+Si ya estaba abierta, lanzarla otra vez solo trae su ventana al frente (en Linux abre otra). Si el puerto 8000 está
 ocupado, elige otro con la variable `RENFE_PORT`.
 
 Si las búsquedas no consiguen abrir el navegador, `RenfeEnjoyer.exe --check-browser` (o
@@ -367,7 +371,7 @@ vuelta atrás.
 ```
 
 `e2e/test_binary.py` prueba además un ejecutable compilado (`E2E_BINARY=dist/RenfeEnjoyer-linux`):
-que abre el navegador sin heredar las librerías del paquete, que conecta por HTTPS
+que abre su ventana sin heredar las librerías del paquete, que conecta por HTTPS
 (`E2E_NETWORK=1`), `--check-browser`, una carpeta sin permiso de escritura y, con
 `E2E_BINARY_OLD`, el relevo real desde una versión anterior. El CI ejecuta las dos partes y no
 publica una release si falla cualquiera.

@@ -370,6 +370,7 @@ def make_app(tmp_path: Path) -> Iterator[Callable[..., App]]:
         port: int | None = None,
         machine_id: str | None = None,
         executable: bool = True,
+        extra_env: dict[str, str] | None = None,
     ) -> App:
         port = port or free_port()
         data = data or tmp_path / f"app-{len(apps)}"
@@ -390,6 +391,7 @@ def make_app(tmp_path: Path) -> Iterator[Callable[..., App]]:
         }
         if activation is not None:
             env["E2E_ACTIVATION_URL"] = activation.url
+        env.update(extra_env or {})
         service = start(
             [BACKEND_PYTHON, str(HARNESS)],
             env,
