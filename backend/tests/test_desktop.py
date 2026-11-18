@@ -227,7 +227,7 @@ def test_the_app_window_uses_a_chromium_browser_in_app_mode() -> None:
     assert window.find_app_browser("linux", chosen, which) == "/opt/brave"
     command = window.app_window_command("/usr/bin/chromium", "http://x", Path("/p"))
     assert "--app=http://x" in command
-    assert "--user-data-dir=/p" in command
+    assert f"--user-data-dir={Path('/p')}" in command
 
 
 def test_on_windows_edge_opens_the_app_window_when_chrome_is_missing() -> None:
@@ -618,7 +618,8 @@ def test_the_log_is_rotated_before_it_grows_too_big(
     stream: Any = desktop._attach_log()
     stream.close()
     assert (tmp_path / "renfe-enjoyer.log.1").read_text() == "x" * 100
-    assert "x" not in log.read_text()
+    # The new log starts afresh (its header names the command, which may hold an x).
+    assert "x" * 100 not in log.read_text()
 
 
 def test_a_console_needs_no_log_file(
