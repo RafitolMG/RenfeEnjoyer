@@ -325,4 +325,4 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" release/RenfeEnjoyer.exe release/RenfeEnjoyer-linux \
             --repo "$GITHUB_REPOSITORY" --title "Renfe Enjoyer $GITHUB_REF_NAME" --latest \
-            --notes "Windows 10 u 11 (RenfeEnjoyer.exe) y Linux x86_64 (RenfeEnjoyer-linux, desde una terminal); necesita Google Chrome o Chromium. La primera vez pide activación. Más información en https://renfe.rafitolmg.dev"
+            --notes "Windows 10 u 11 (RenfeEnjoyer.exe) y Linux x86_64 (RenfeEnjoyer-linux); necesita Google Chrome o Chromium. La primera vez pide activación. Más información en https://renfe.rafitolmg.dev"

@@ -117,12 +117,13 @@ cierra la app**. Si hay una búsqueda en curso, antes de cerrar pregunta, porque
   La ventana es Chrome o Chromium en modo app, con un perfil propio. Desde una terminal, `Ctrl+C`
   también la para.
 
-Si ya estaba abierta, lanzarla otra vez solo trae su ventana al frente (en Linux abre otra). Si el puerto 8000 está
-ocupado, elige otro con la variable `RENFE_PORT`.
+Si ya estaba abierta, lanzarla otra vez solo trae su ventana al frente (en Linux abre otra). Si el
+puerto 8000 está ocupado, elige otro con la variable `RENFE_PORT`.
 
 Si las búsquedas no consiguen abrir el navegador, `RenfeEnjoyer.exe --check-browser` (o
 `./RenfeEnjoyer-linux --check-browser`) lo abre sin ventana, carga una página de prueba y dice si
-funciona o por qué no.
+funciona o por qué no. En Windows, `RenfeEnjoyer.exe --check-window` hace lo mismo con la ventana
+de la app; el resultado queda en el log.
 
 Diferencias con la versión desde el código:
 
